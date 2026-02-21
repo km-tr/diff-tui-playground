@@ -16,6 +16,7 @@ pub fn parse_file_diff(output: &str) -> FileDiff {
     let mut is_new_file = false;
     let mut is_deleted = false;
     let mut is_rename = false;
+    let mut is_submodule = false;
 
     let mut i = 0;
 
@@ -40,6 +41,8 @@ pub fn parse_file_diff(output: &str) -> FileDiff {
             is_deleted = true;
         } else if line.starts_with("rename from") || line.starts_with("rename to") {
             is_rename = true;
+        } else if line.starts_with("Submodule") || line.contains("160000") {
+            is_submodule = true;
         }
         i += 1;
     }
@@ -108,6 +111,7 @@ pub fn parse_file_diff(output: &str) -> FileDiff {
         is_new_file,
         is_deleted,
         is_rename,
+        is_submodule,
     }
 }
 

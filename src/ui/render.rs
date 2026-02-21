@@ -50,8 +50,11 @@ pub fn draw(f: &mut Frame, state: &AppState) {
         Overlay::Search => {
             draw_search_bar(f, size, state);
         }
+        Overlay::FileFilter => {
+            draw_file_filter_bar(f, size, state);
+        }
         Overlay::Export => {
-            draw_export_dialog(f, size);
+            draw_export_dialog(f, size, state);
         }
         Overlay::None => {}
     }
@@ -152,12 +155,14 @@ fn draw_footer(f: &mut Frame, area: Rect, state: &AppState) {
                 DiffSpec::Compare { .. } => "b:base t:target",
             };
             format!(
-                " j/k:move  n/p:hunk  Tab:focus  m:mode  {}  c:context  w:worktree  y:copy  r:reload  ?:help  q:quit",
+                " j/k:move  n/p:hunk  Tab:focus  m:mode  {}  c:context  w:worktree  /:filter  y:copy  o:export  ?:help  q:quit",
                 mode_key
             )
         }
         Overlay::Help => " q/?:close ".to_string(),
         Overlay::Search => " Enter:close  Ctrl+n/p:next/prev ".to_string(),
+        Overlay::FileFilter => " Enter:apply  Esc:cancel  type to filter ".to_string(),
+        Overlay::Export => " Enter:export  Esc:cancel ".to_string(),
         _ => " Enter:select  Esc:cancel  type to filter ".to_string(),
     };
 
@@ -202,19 +207,52 @@ fn draw_search_bar(f: &mut Frame, area: Rect, state: &AppState) {
     f.render_widget(para, rect);
 }
 
-fn draw_export_dialog(f: &mut Frame, area: Rect) {
-    let width = area.width.min(50);
+fn draw_file_filter_bar(f: &mut Frame, area: Rect, state: &AppState) {
+    let width = area.width.min(60);
+    let x = (area.width.saturating_sub(width)) / 2;
+    let y = area.height.saturating_sub(4);
+    let rect = Rect::new(x, y, width, 3);
+
+    let count = state.filtered_file_indices().len();
+    let info = if state.file_filter.is_empty() {
+        String::new()
+    } else {
+        format!(" ({} matches)", count)
+    };
+
+    let block = Block::default()
+        .title(format!(" Filter Files{} ", info))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Green));
+
+    let para = Paragraph::new(state.file_filter.as_str())
+        .block(block)
+        .style(Style::default().fg(Color::White));
+
+    f.render_widget(ratatui::widgets::Clear, rect);
+    f.render_widget(para, rect);
+}
+
+fn draw_export_dialog(f: &mut Frame, area: Rect, state: &AppState) {
+    let width = area.width.min(60);
     let height = 5;
     let x = (area.width.saturating_sub(width)) / 2;
     let y = (area.height.saturating_sub(height)) / 2;
     let rect = Rect::new(x, y, width, height);
 
     let block = Block::default()
-        .title(" Export ")
+        .title(" Export to file (Enter to confirm, Esc to cancel) ")
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::Cyan));
 
-    let text = "Export not yet implemented.\nPress Esc to close.";
+    let text = vec![
+        Line::from(Span::styled("Path:", Style::default().fg(Color::DarkGray))),
+        Line::from(Span::styled(
+            state.export.path_input.as_str(),
+            Style::default().fg(Color::White),
+        )),
+    ];
+
     let para = Paragraph::new(text)
         .block(block)
         .style(Style::default().fg(Color::White));

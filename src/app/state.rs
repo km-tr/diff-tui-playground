@@ -40,6 +40,7 @@ pub enum Overlay {
     ContextSelector,
     Search,
     Export,
+    FileFilter,
 }
 
 /// Toast message with expiry
@@ -121,6 +122,12 @@ pub struct SearchState {
     pub current_match: usize,
 }
 
+/// Export dialog state
+#[derive(Debug, Clone, Default)]
+pub struct ExportState {
+    pub path_input: String,
+}
+
 /// The full application state
 pub struct AppState {
     pub context: Option<GitContext>,
@@ -151,6 +158,9 @@ pub struct AppState {
     // Search
     pub search: SearchState,
 
+    // Export
+    pub export: ExportState,
+
     // Toast/Error
     pub toast: Option<Toast>,
     pub last_error: Option<String>,
@@ -168,6 +178,12 @@ pub struct AppState {
 
     // Loading indicator
     pub loading: bool,
+
+    // Pending command from internal event handling
+    pub pending_command: Option<commands::Command>,
+
+    // Fallback poll timer
+    pub last_poll: Instant,
 }
 
 impl AppState {
@@ -191,6 +207,7 @@ impl AppState {
             worktrees_cache: Vec::new(),
             pane_candidates: Vec::new(),
             search: SearchState::default(),
+            export: ExportState::default(),
             toast: None,
             last_error: None,
             generation: 0,
@@ -199,7 +216,38 @@ impl AppState {
             term_width: 0,
             term_height: 0,
             loading: false,
+            pending_command: None,
+            last_poll: Instant::now(),
         }
+    }
+
+    /// Get the filtered file list indices
+    pub fn filtered_file_indices(&self) -> Vec<usize> {
+        if self.file_filter.is_empty() {
+            (0..self.files.len()).collect()
+        } else {
+            use fuzzy_matcher::skim::SkimMatcherV2;
+            use fuzzy_matcher::FuzzyMatcher;
+            let matcher = SkimMatcherV2::default();
+            let mut scored: Vec<(usize, i64)> = self
+                .files
+                .iter()
+                .enumerate()
+                .filter_map(|(i, f)| {
+                    matcher
+                        .fuzzy_match(&f.path, &self.file_filter)
+                        .map(|score| (i, score))
+                })
+                .collect();
+            scored.sort_by(|a, b| b.1.cmp(&a.1));
+            scored.into_iter().map(|(i, _)| i).collect()
+        }
+    }
+
+    /// Get the actual selected file index in the unfiltered list
+    pub fn actual_selected_file_index(&self) -> Option<usize> {
+        let filtered = self.filtered_file_indices();
+        filtered.get(self.file_selected).copied()
     }
 }
 
@@ -229,16 +277,11 @@ impl App {
         self.state.term_width = size.width;
         self.state.term_height = size.height;
 
-        // Resolve context
-        self.resolve_context()?;
+        // Resolve context asynchronously
+        self.resolve_context_async();
 
-        // Load initial data
-        self.load_files();
-        self.load_refs();
-        self.load_worktrees();
-
-        // Start watcher
-        let _watcher = self.start_watcher();
+        // Start watcher (will be None until context resolves; that's fine)
+        let mut _watcher: Option<FileWatcher> = None;
 
         info!("Entering main loop");
 
@@ -253,6 +296,15 @@ impl App {
                 update::handle_internal_event(&mut self.state, ev);
             }
 
+            // Execute any pending command from internal event handling
+            if let Some(cmd) = self.state.pending_command.take() {
+                commands::execute(cmd, &mut self.state, &self.git, &self.internal_tx);
+                // Start watcher after first context resolve if needed
+                if _watcher.is_none() && self.state.context.is_some() {
+                    _watcher = self.start_watcher();
+                }
+            }
+
             // Clean up expired toast
             if let Some(ref toast) = self.state.toast {
                 if toast.is_expired() {
@@ -260,24 +312,49 @@ impl App {
                 }
             }
 
-            // Poll for input
+            // Fallback polling (if configured)
+            if let Some(poll_secs) = self.state.config.watch.poll_interval_secs {
+                if self.state.context.is_some()
+                    && self.state.last_poll.elapsed() >= Duration::from_secs(poll_secs)
+                {
+                    self.state.last_poll = Instant::now();
+                    self.state.generation += 1;
+                    commands::execute(
+                        commands::Command::Reload,
+                        &mut self.state,
+                        &self.git,
+                        &self.internal_tx,
+                    );
+                }
+            }
+
+            // Poll for input (50ms tick)
             if event::poll(Duration::from_millis(50))? {
-                if let Event::Key(key) = event::read()? {
-                    if let Some(input) = self.map_key(key) {
-                        if matches!(input, InputEvent::Quit) && self.state.overlay == Overlay::None
-                        {
-                            // Save state before quitting
-                            self.save_state();
-                            break;
-                        }
-                        let cmd = update::handle_input(&mut self.state, input);
-                        if let Some(cmd) = cmd {
-                            commands::execute(cmd, &mut self.state, &self.git, &self.internal_tx);
+                match event::read()? {
+                    Event::Key(key) => {
+                        if let Some(input) = self.map_key(key) {
+                            if matches!(input, InputEvent::Quit)
+                                && self.state.overlay == Overlay::None
+                            {
+                                self.save_state();
+                                break;
+                            }
+                            let cmd = update::handle_input(&mut self.state, input);
+                            if let Some(cmd) = cmd {
+                                commands::execute(
+                                    cmd,
+                                    &mut self.state,
+                                    &self.git,
+                                    &self.internal_tx,
+                                );
+                            }
                         }
                     }
-                } else if let Event::Resize(w, h) = event::read()? {
-                    self.state.term_width = w;
-                    self.state.term_height = h;
+                    Event::Resize(w, h) => {
+                        self.state.term_width = w;
+                        self.state.term_height = h;
+                    }
+                    _ => {}
                 }
             }
         }
@@ -285,158 +362,38 @@ impl App {
         Ok(())
     }
 
-    fn resolve_context(&mut self) -> Result<()> {
-        let git = &self.git;
-        match git.repo_root(&self.repo_path) {
+    fn resolve_context_async(&self) {
+        let git = self.git.clone();
+        let tx = self.internal_tx.clone();
+        let repo_path = self.repo_path.clone();
+        let default_bases = self.state.config.default_base.clone();
+
+        std::thread::spawn(move || match git.repo_root(&repo_path) {
             Ok(root) => {
                 let branch = git.current_branch(&root).unwrap_or(None);
                 let head = git.head_ref(&root).unwrap_or(None);
                 let unborn = git.is_unborn(&root).unwrap_or(false);
                 let detached = git.is_detached(&root).unwrap_or(false);
+                let default_base = git.find_default_base(&root, &default_bases);
 
                 let ctx = GitContext {
                     repo_root: root.clone(),
-                    worktree_path: root.clone(),
+                    worktree_path: root,
                     git_dir: None,
-                    current_branch: branch.clone(),
+                    current_branch: branch,
                     head_ref: head,
                     is_detached: detached,
                     is_unborn: unborn,
                     source: ContextSource::Cwd,
                 };
 
-                // Determine default base for Compare mode
-                if let Some(base) = git.find_default_base(&root, &self.state.config.default_base) {
-                    if !unborn {
-                        // Restore last mode from persistent state, or default
-                        let mode = self.state.persistent.last_mode.as_deref();
-                        let last_base = self.state.persistent.last_base.clone();
-                        match mode {
-                            Some("compare") => {
-                                self.state.diff_spec = DiffSpec::Compare {
-                                    base: last_base.unwrap_or(base),
-                                    target: None,
-                                };
-                            }
-                            _ => {
-                                // Store the default base for later
-                                self.state.diff_spec = DiffSpec::Worktree(
-                                    if self.state.persistent.last_worktree_mode.as_deref()
-                                        == Some("staged")
-                                    {
-                                        WorktreeMode::Staged
-                                    } else {
-                                        WorktreeMode::Unstaged
-                                    },
-                                );
-                            }
-                        }
-                    }
-                }
-
-                // Update persistent state
-                self.state.persistent.add_recent_context(
-                    root,
-                    branch,
-                    self.state.config.max_recent_contexts,
-                );
-
-                self.state.context = Some(ctx);
-                info!("Context resolved: {:?}", self.state.context);
-            }
-            Err(e) => {
-                self.state.last_error = Some(format!("Not a git repository: {}", e));
-            }
-        }
-        Ok(())
-    }
-
-    fn load_files(&self) {
-        if self.state.context.is_none() {
-            return;
-        }
-        let ctx = self.state.context.as_ref().unwrap().clone();
-        let spec = self.state.diff_spec.clone();
-        let git = self.git.clone();
-        let tx = self.internal_tx.clone();
-        let gen = self.state.generation;
-
-        std::thread::spawn(move || match git.changed_files(&ctx.worktree_path, &spec) {
-            Ok(files) => {
-                let _ = tx.send(InternalEvent::GitFilesUpdated {
-                    generation: gen,
-                    files,
+                let _ = tx.send(InternalEvent::ContextResolved {
+                    context: ctx,
+                    default_base,
                 });
             }
             Err(e) => {
-                let _ = tx.send(InternalEvent::Error(format!("Failed to get files: {}", e)));
-            }
-        });
-    }
-
-    fn load_refs(&self) {
-        if self.state.context.is_none() {
-            return;
-        }
-        let ctx = self.state.context.as_ref().unwrap().clone();
-        let git = self.git.clone();
-        let tx = self.internal_tx.clone();
-
-        std::thread::spawn(move || match git.list_refs(&ctx.worktree_path) {
-            Ok(refs) => {
-                let _ = tx.send(InternalEvent::GitRefsLoaded { refs });
-            }
-            Err(e) => {
-                let _ = tx.send(InternalEvent::Error(format!("Failed to list refs: {}", e)));
-            }
-        });
-    }
-
-    fn load_worktrees(&self) {
-        if self.state.context.is_none() {
-            return;
-        }
-        let ctx = self.state.context.as_ref().unwrap().clone();
-        let git = self.git.clone();
-        let tx = self.internal_tx.clone();
-
-        std::thread::spawn(move || match git.list_worktrees(&ctx.worktree_path) {
-            Ok(worktrees) => {
-                let _ = tx.send(InternalEvent::GitWorktreesLoaded { worktrees });
-            }
-            Err(e) => {
-                let _ = tx.send(InternalEvent::Error(format!(
-                    "Failed to list worktrees: {}",
-                    e
-                )));
-            }
-        });
-    }
-
-    pub fn load_diff_for_selected(&self) {
-        if self.state.context.is_none() || self.state.files.is_empty() {
-            return;
-        }
-        let ctx = self.state.context.as_ref().unwrap().clone();
-        let spec = self.state.diff_spec.clone();
-        let file_path = self.state.files[self.state.file_selected].path.clone();
-        let git = self.git.clone();
-        let tx = self.internal_tx.clone();
-        let gen = self.state.generation;
-        let ctx_lines = self.state.config.unified_context;
-
-        std::thread::spawn(move || {
-            match git.file_diff(&ctx.worktree_path, &spec, &file_path, ctx_lines) {
-                Ok(diff) => {
-                    let _ = tx.send(InternalEvent::GitDiffUpdated {
-                        generation: gen,
-                        file_path,
-                        diff,
-                    });
-                }
-                Err(e) => {
-                    let _ = tx.send(InternalEvent::Error(format!("Failed to get diff: {}", e)));
-                }
+                let _ = tx.send(InternalEvent::Error(format!("Not a git repository: {}", e)));
             }
         });
     }
@@ -481,7 +438,7 @@ impl App {
     }
 
     fn map_key(&self, key: KeyEvent) -> Option<InputEvent> {
-        // Check if we're in a selector or search overlay
+        // Search overlay
         if self.state.overlay == Overlay::Search {
             return match key.code {
                 KeyCode::Esc => Some(InputEvent::SearchCancel),
@@ -498,6 +455,29 @@ impl App {
             };
         }
 
+        // File filter overlay
+        if self.state.overlay == Overlay::FileFilter {
+            return match key.code {
+                KeyCode::Esc => Some(InputEvent::FileFilterCancel),
+                KeyCode::Enter => Some(InputEvent::FileFilterConfirm),
+                KeyCode::Backspace => Some(InputEvent::FileFilterBackspace),
+                KeyCode::Char(c) => Some(InputEvent::FileFilterInput(c)),
+                _ => None,
+            };
+        }
+
+        // Export overlay
+        if self.state.overlay == Overlay::Export {
+            return match key.code {
+                KeyCode::Esc => Some(InputEvent::ExportCancel),
+                KeyCode::Enter => Some(InputEvent::ExportConfirm),
+                KeyCode::Backspace => Some(InputEvent::ExportBackspace),
+                KeyCode::Char(c) => Some(InputEvent::ExportInput(c)),
+                _ => None,
+            };
+        }
+
+        // Selector overlays
         if matches!(
             self.state.overlay,
             Overlay::BaseSelector
@@ -524,6 +504,7 @@ impl App {
             };
         }
 
+        // Help overlay
         if self.state.overlay == Overlay::Help {
             return match key.code {
                 KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('?') => Some(InputEvent::Quit),
@@ -531,6 +512,7 @@ impl App {
             };
         }
 
+        // Normal mode
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => Some(InputEvent::Quit),
             KeyCode::Char('j') | KeyCode::Down => Some(InputEvent::MoveDown),
@@ -543,6 +525,7 @@ impl App {
             KeyCode::Char('n') => Some(InputEvent::NextHunk),
             KeyCode::Char('p') => Some(InputEvent::PrevHunk),
             KeyCode::Char('f') => Some(InputEvent::SearchInDiff),
+            KeyCode::Char('/') => Some(InputEvent::OpenFileFilter),
             KeyCode::Char('m') => Some(InputEvent::ToggleMode),
             KeyCode::Char('s') => Some(InputEvent::ToggleStagedUnstaged),
             KeyCode::Char('b') => Some(InputEvent::OpenBaseSelector),

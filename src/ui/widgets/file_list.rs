@@ -14,16 +14,25 @@ pub fn draw_file_list(f: &mut Frame, area: Rect, state: &AppState, focused: bool
         Color::DarkGray
     };
 
+    let title = if state.file_filter.is_empty() {
+        " Files ".to_string()
+    } else {
+        format!(" Files [filter: {}] ", state.file_filter)
+    };
     let block = Block::default()
-        .title(" Files ")
+        .title(title)
         .borders(Borders::ALL)
         .border_style(Style::default().fg(border_color));
 
-    if state.files.is_empty() {
+    let filtered = state.filtered_file_indices();
+
+    if filtered.is_empty() {
         let msg = if state.loading {
             "Loading..."
         } else if state.context.is_none() {
             "No repository"
+        } else if !state.file_filter.is_empty() {
+            "No matching files"
         } else {
             "No changes"
         };
@@ -49,13 +58,13 @@ pub fn draw_file_list(f: &mut Frame, area: Rect, state: &AppState, focused: bool
         scroll
     };
 
-    let items: Vec<ListItem> = state
-        .files
+    let items: Vec<ListItem> = filtered
         .iter()
         .enumerate()
         .skip(scroll)
         .take(inner_height)
-        .map(|(i, file)| {
+        .map(|(i, &file_idx)| {
+            let file = &state.files[file_idx];
             let status_color = match file.status {
                 FileStatus::Added => Color::Green,
                 FileStatus::Modified => Color::Yellow,

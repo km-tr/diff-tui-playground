@@ -17,6 +17,7 @@ use crate::util::clipboard;
 #[derive(Debug)]
 pub enum Command {
     Reload,
+    InitialLoad,
     LoadDiff,
     CopyHunk,
     CopyFileDiff,
@@ -31,6 +32,11 @@ pub fn execute(cmd: Command, state: &mut AppState, git: &Arc<GitCli>, tx: &Sende
         Command::Reload => {
             state.loading = true;
             reload_files(state, git, tx);
+        }
+        Command::InitialLoad => {
+            state.loading = true;
+            reload_files(state, git, tx);
+            load_refs_and_worktrees(state, git, tx);
         }
         Command::LoadDiff => {
             load_diff(state, git, tx);
@@ -79,13 +85,35 @@ fn reload_files(state: &mut AppState, git: &Arc<GitCli>, tx: &Sender<InternalEve
     });
 }
 
+fn load_refs_and_worktrees(state: &AppState, git: &Arc<GitCli>, tx: &Sender<InternalEvent>) {
+    if let Some(ref ctx) = state.context {
+        let git = git.clone();
+        let tx = tx.clone();
+        let path = ctx.worktree_path.clone();
+        std::thread::spawn(move || {
+            if let Ok(refs) = git.list_refs(&path) {
+                let _ = tx.send(InternalEvent::GitRefsLoaded { refs });
+            }
+            if let Ok(wts) = git.list_worktrees(&path) {
+                let _ = tx.send(InternalEvent::GitWorktreesLoaded { worktrees: wts });
+            }
+        });
+    }
+}
+
 fn load_diff(state: &mut AppState, git: &Arc<GitCli>, tx: &Sender<InternalEvent>) {
     if state.context.is_none() || state.files.is_empty() {
         return;
     }
+    let idx = state
+        .actual_selected_file_index()
+        .unwrap_or(state.file_selected);
+    if idx >= state.files.len() {
+        return;
+    }
     let ctx = state.context.as_ref().unwrap().clone();
     let spec = state.diff_spec.clone();
-    let file_path = state.files[state.file_selected].path.clone();
+    let file_path = state.files[idx].path.clone();
     let git = git.clone();
     let tx = tx.clone();
     let gen = state.generation;

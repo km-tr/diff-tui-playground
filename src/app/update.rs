@@ -228,7 +228,7 @@ pub fn handle_input(state: &mut AppState, event: InputEvent) -> Option<Command> 
         // Selectors
         InputEvent::OpenBaseSelector => {
             if let DiffSpec::Compare { .. } = &state.diff_spec {
-                let items: Vec<String> = state.refs_cache.iter().map(|r| r.name.clone()).collect();
+                let items = sorted_ref_names(&state.refs_cache);
                 state.selector = Some(SelectorState::new(items));
                 state.overlay = Overlay::BaseSelector;
             } else {
@@ -241,7 +241,7 @@ pub fn handle_input(state: &mut AppState, event: InputEvent) -> Option<Command> 
         }
         InputEvent::OpenTargetSelector => {
             if let DiffSpec::Compare { .. } = &state.diff_spec {
-                let items: Vec<String> = state.refs_cache.iter().map(|r| r.name.clone()).collect();
+                let items = sorted_ref_names(&state.refs_cache);
                 state.selector = Some(SelectorState::new(items));
                 state.overlay = Overlay::TargetSelector;
             } else {
@@ -338,11 +338,73 @@ pub fn handle_input(state: &mut AppState, event: InputEvent) -> Option<Command> 
             None
         }
 
+        // File filter
+        InputEvent::OpenFileFilter => {
+            state.file_filter.clear();
+            state.overlay = Overlay::FileFilter;
+            None
+        }
+        InputEvent::FileFilterInput(c) => {
+            state.file_filter.push(c);
+            // Reset selection when filter changes
+            state.file_selected = 0;
+            None
+        }
+        InputEvent::FileFilterBackspace => {
+            state.file_filter.pop();
+            state.file_selected = 0;
+            None
+        }
+        InputEvent::FileFilterConfirm => {
+            state.overlay = Overlay::None;
+            // Keep the filter active, load diff for newly selected file
+            if !state.files.is_empty() && state.actual_selected_file_index().is_some() {
+                return Some(Command::LoadDiff);
+            }
+            None
+        }
+        InputEvent::FileFilterCancel => {
+            state.file_filter.clear();
+            state.overlay = Overlay::None;
+            None
+        }
+
         // Output
         InputEvent::CopyHunk => Some(Command::CopyHunk),
         InputEvent::CopyFileDiff => Some(Command::CopyFileDiff),
         InputEvent::Export => {
+            // Default filename based on current file
+            let default_name = if let Some(idx) = state.actual_selected_file_index() {
+                let file_path = &state.files[idx].path;
+                let sanitized = file_path.replace('/', "_");
+                format!("{}.patch", sanitized)
+            } else {
+                "diff.patch".to_string()
+            };
+            state.export = ExportState {
+                path_input: default_name,
+            };
             state.overlay = Overlay::Export;
+            None
+        }
+        InputEvent::ExportInput(c) => {
+            state.export.path_input.push(c);
+            None
+        }
+        InputEvent::ExportBackspace => {
+            state.export.path_input.pop();
+            None
+        }
+        InputEvent::ExportConfirm => {
+            let path = state.export.path_input.clone();
+            state.overlay = Overlay::None;
+            if !path.is_empty() {
+                return Some(Command::ExportToFile(path));
+            }
+            None
+        }
+        InputEvent::ExportCancel => {
+            state.overlay = Overlay::None;
             None
         }
 
@@ -353,12 +415,6 @@ pub fn handle_input(state: &mut AppState, event: InputEvent) -> Option<Command> 
         }
         InputEvent::Help => {
             state.overlay = Overlay::Help;
-            None
-        }
-
-        InputEvent::Resize(w, h) => {
-            state.term_width = w;
-            state.term_height = h;
             None
         }
     }
@@ -378,12 +434,12 @@ pub fn handle_internal_event(state: &mut AppState, event: InternalEvent) {
             state.files = files;
             state.file_selected = state.file_selected.min(state.files.len().saturating_sub(1));
             state.loading = false;
-            // Auto-load diff for first file
+            state.current_diff = None;
+            state.diff_scroll = 0;
+            state.current_hunk = 0;
+            // Auto-load diff for selected file
             if !state.files.is_empty() {
-                // Trigger diff load via command
-                state.current_diff = None;
-                state.diff_scroll = 0;
-                state.current_hunk = 0;
+                state.pending_command = Some(Command::LoadDiff);
             }
         }
         InternalEvent::GitDiffUpdated {
@@ -408,9 +464,36 @@ pub fn handle_internal_event(state: &mut AppState, event: InternalEvent) {
         InternalEvent::GitWorktreesLoaded { worktrees } => {
             state.worktrees_cache = worktrees;
         }
-        InternalEvent::ContextResolved { context } => {
+        InternalEvent::ContextResolved {
+            context,
+            default_base,
+        } => {
             state.context = Some(context);
+
+            // Restore diff spec from persistence
+            match state.persistent.last_mode.as_deref() {
+                Some("compare") => {
+                    if !state.context.as_ref().is_some_and(|c| c.is_unborn) {
+                        let base = state
+                            .persistent
+                            .last_base
+                            .clone()
+                            .or(default_base)
+                            .unwrap_or_else(|| "main".to_string());
+                        state.diff_spec = DiffSpec::Compare { base, target: None };
+                    }
+                }
+                _ => {
+                    let wt_mode = match state.persistent.last_worktree_mode.as_deref() {
+                        Some("staged") => WorktreeMode::Staged,
+                        _ => WorktreeMode::Unstaged,
+                    };
+                    state.diff_spec = DiffSpec::Worktree(wt_mode);
+                }
+            }
+
             state.generation += 1;
+            state.pending_command = Some(Command::InitialLoad);
         }
         InternalEvent::PanesDiscovered { panes } => {
             state.pane_candidates = panes;
@@ -418,6 +501,7 @@ pub fn handle_internal_event(state: &mut AppState, event: InternalEvent) {
         InternalEvent::WatchTriggered => {
             state.generation += 1;
             state.loading = true;
+            state.pending_command = Some(Command::Reload);
         }
         InternalEvent::Error(msg) => {
             state.last_error = Some(msg.clone());
@@ -428,6 +512,31 @@ pub fn handle_internal_event(state: &mut AppState, event: InternalEvent) {
             state.toast = Some(Toast::new(msg, Duration::from_secs(3)));
         }
     }
+}
+
+/// Sort refs: local branches first, then remote branches, then tags
+fn sorted_ref_names(refs: &[RefEntry]) -> Vec<String> {
+    let mut local: Vec<&str> = Vec::new();
+    let mut remote: Vec<&str> = Vec::new();
+    let mut tags: Vec<&str> = Vec::new();
+
+    for r in refs {
+        match r.kind {
+            RefKind::Tag => tags.push(&r.name),
+            _ if r.is_remote => remote.push(&r.name),
+            _ => local.push(&r.name),
+        }
+    }
+
+    local.sort_unstable();
+    remote.sort_unstable();
+    tags.sort_unstable();
+
+    let mut result: Vec<String> = Vec::with_capacity(local.len() + remote.len() + tags.len());
+    result.extend(local.into_iter().map(String::from));
+    result.extend(remote.into_iter().map(String::from));
+    result.extend(tags.into_iter().map(String::from));
+    result
 }
 
 fn scroll_to_hunk(state: &mut AppState) {

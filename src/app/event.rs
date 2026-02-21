@@ -20,6 +20,7 @@ pub enum InputEvent {
     OpenTargetSelector,
     OpenWorktreeSelector,
     OpenContextSelector,
+    OpenFileFilter,
     CopyHunk,
     CopyFileDiff,
     Export,
@@ -40,7 +41,16 @@ pub enum InputEvent {
     SearchCancel,
     SearchNext,
     SearchPrev,
-    Resize(u16, u16),
+    // File filter interactions
+    FileFilterInput(char),
+    FileFilterBackspace,
+    FileFilterConfirm,
+    FileFilterCancel,
+    // Export interactions
+    ExportInput(char),
+    ExportBackspace,
+    ExportConfirm,
+    ExportCancel,
 }
 
 /// Events from internal/async operations
@@ -63,6 +73,7 @@ pub enum InternalEvent {
     },
     ContextResolved {
         context: GitContext,
+        default_base: Option<String>,
     },
     PanesDiscovered {
         panes: Vec<PaneCandidate>,

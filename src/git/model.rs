@@ -149,6 +149,7 @@ pub struct FileDiff {
     pub is_new_file: bool,
     pub is_deleted: bool,
     pub is_rename: bool,
+    pub is_submodule: bool,
 }
 
 /// A single hunk in a diff
