@@ -8,11 +8,19 @@ use super::backend::GitBackend;
 use super::model::*;
 use super::parse::{diff, name_status, worktree};
 
-pub struct GitCli;
+pub struct GitCli {
+    max_bytes: usize,
+}
 
 impl GitCli {
     pub fn new() -> Self {
-        Self
+        Self {
+            max_bytes: 5_000_000,
+        }
+    }
+
+    pub fn with_max_bytes(max_bytes: usize) -> Self {
+        Self { max_bytes }
     }
 
     fn git_cmd(repo: &Path) -> Command {
@@ -164,7 +172,18 @@ impl GitBackend for GitCli {
             cmd.arg(a);
         }
         let output = Self::run_allow_empty(&mut cmd)?;
-        Ok(diff::parse_file_diff(&output))
+        // Truncate raw output at byte limit to prevent excessive memory use
+        let truncated = if output.len() > self.max_bytes {
+            // Find a safe UTF-8 boundary near the limit
+            let mut end = self.max_bytes;
+            while end > 0 && !output.is_char_boundary(end) {
+                end -= 1;
+            }
+            &output[..end]
+        } else {
+            &output
+        };
+        Ok(diff::parse_file_diff(truncated))
     }
 
     fn list_refs(&self, repo: &Path) -> Result<Vec<RefEntry>> {

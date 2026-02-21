@@ -263,10 +263,11 @@ pub struct App {
 impl App {
     pub fn new(config: AppConfig, repo_path: PathBuf) -> Self {
         let (tx, rx) = bounded(256);
+        let max_bytes = config.truncate_max_bytes;
         Self {
             state: AppState::new(config),
             repo_path,
-            git: Arc::new(GitCli::new()),
+            git: Arc::new(GitCli::with_max_bytes(max_bytes)),
             internal_tx: tx,
             internal_rx: rx,
         }
