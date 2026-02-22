@@ -51,10 +51,10 @@ pub fn execute(cmd: Command, state: &mut AppState, git: &Arc<GitCli>, tx: &Sende
             export_to_file(state, &path);
         }
         Command::SwitchWorktree(selection) => {
-            switch_worktree(state, git, tx, &selection);
+            switch_to_path(state, git, tx, &selection);
         }
         Command::SwitchContext(selection) => {
-            switch_context(state, git, tx, &selection);
+            switch_to_path(state, git, tx, &selection);
         }
         Command::OpenContextSelector => {
             open_context_selector(state, git, tx);
@@ -241,27 +241,7 @@ fn export_to_file(state: &mut AppState, path: &str) {
     }
 }
 
-fn switch_worktree(
-    state: &mut AppState,
-    git: &Arc<GitCli>,
-    tx: &Sender<InternalEvent>,
-    path_str: &str,
-) {
-    // path_str is the raw path from selector data (not a formatted label)
-    let path = PathBuf::from(path_str);
-
-    if !path.exists() {
-        state.toast = Some(Toast::new(
-            format!("Worktree path does not exist: {}", path_str),
-            Duration::from_secs(3),
-        ));
-        return;
-    }
-
-    resolve_and_switch(state, git, tx, &path);
-}
-
-fn switch_context(
+fn switch_to_path(
     state: &mut AppState,
     git: &Arc<GitCli>,
     tx: &Sender<InternalEvent>,

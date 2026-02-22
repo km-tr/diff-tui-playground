@@ -89,6 +89,11 @@ impl SelectorState {
     }
 
     pub fn with_data(items: Vec<String>, data: Vec<String>) -> Self {
+        debug_assert_eq!(
+            items.len(),
+            data.len(),
+            "SelectorState: items and data must have the same length"
+        );
         let filtered: Vec<usize> = (0..items.len()).collect();
         Self {
             items,

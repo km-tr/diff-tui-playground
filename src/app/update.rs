@@ -187,7 +187,14 @@ pub fn handle_input(state: &mut AppState, event: InputEvent) -> Option<Command> 
         InputEvent::ToggleMode => {
             match &state.diff_spec {
                 DiffSpec::Worktree(_) => {
-                    if state.context.as_ref().map_or(true, |c| c.is_unborn) {
+                    if state.context.is_none() {
+                        state.toast = Some(Toast::new(
+                            "Context not loaded yet",
+                            Duration::from_secs(2),
+                        ));
+                        return None;
+                    }
+                    if state.context.as_ref().is_some_and(|c| c.is_unborn) {
                         state.toast = Some(Toast::new(
                             "Cannot use Compare mode: no commits yet",
                             Duration::from_secs(3),
