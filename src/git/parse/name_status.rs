@@ -85,6 +85,7 @@ pub fn merge_numstat(entries: &mut [FileEntry], numstat_output: &str) {
         }
         let parts: Vec<&str> = line.split('\t').collect();
         if parts.len() >= 3 {
+            // Binary files show "-" for additions/deletions; parse as 0
             let additions = parts[0].parse::<u32>().unwrap_or(0);
             let deletions = parts[1].parse::<u32>().unwrap_or(0);
             let path = parts[2];

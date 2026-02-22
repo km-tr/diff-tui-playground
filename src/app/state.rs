@@ -550,6 +550,9 @@ impl App {
         if self.state.overlay == Overlay::Help {
             return match key.code {
                 KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('?') => Some(InputEvent::Quit),
+                KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    Some(InputEvent::Quit)
+                }
                 _ => None,
             };
         }
