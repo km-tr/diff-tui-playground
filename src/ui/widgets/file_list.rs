@@ -114,7 +114,14 @@ pub fn draw_file_list(f: &mut Frame, area: Rect, state: &AppState, focused: bool
                     Style::default().fg(status_color),
                 ),
                 Span::styled(&file.path, style),
-                Span::styled(stat, Style::default().fg(Color::DarkGray)),
+                Span::styled(
+                    stat,
+                    if i == state.file_selected {
+                        Style::default().fg(Color::Gray)
+                    } else {
+                        Style::default().fg(Color::DarkGray)
+                    },
+                ),
             ]);
 
             ListItem::new(line).style(if i == state.file_selected {

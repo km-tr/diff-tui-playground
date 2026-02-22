@@ -60,7 +60,7 @@ fn parse_name_status_line(line: &str) -> Option<FileEntry> {
 /// to ("src/old.rs", "src/new.rs")
 fn expand_rename_path(path: &str) -> Option<(String, String)> {
     if let Some(brace_start) = path.find('{') {
-        if let Some(brace_end) = path.find('}') {
+        if let Some(brace_end) = path.find('}').filter(|&end| end > brace_start) {
             let prefix = &path[..brace_start];
             let suffix = &path[brace_end + 1..];
             let inner = &path[brace_start + 1..brace_end];

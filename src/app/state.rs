@@ -386,13 +386,31 @@ impl App {
             Ok(root) => {
                 let branch = git.current_branch(&root).unwrap_or(None);
                 let head = git.head_ref(&root).unwrap_or(None);
-                let unborn = git.is_unborn(&root).unwrap_or(false);
-                let detached = git.is_detached(&root).unwrap_or(false);
+                let unborn = match git.is_unborn(&root) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        let _ = tx.send(InternalEvent::Error(format!(
+                            "Failed to check unborn state: {}",
+                            e
+                        )));
+                        return;
+                    }
+                };
+                let detached = match git.is_detached(&root) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        let _ = tx.send(InternalEvent::Error(format!(
+                            "Failed to check detached state: {}",
+                            e
+                        )));
+                        return;
+                    }
+                };
                 let default_base = git.find_default_base(&root, &default_bases);
 
                 let ctx = GitContext {
                     repo_root: root.clone(),
-                    worktree_path: repo_path.clone(),
+                    worktree_path: root.clone(),
                     git_dir: None,
                     current_branch: branch,
                     head_ref: head,
@@ -543,6 +561,9 @@ impl App {
             KeyCode::Char('b') => Some(InputEvent::OpenBaseSelector),
             KeyCode::Char('t') => Some(InputEvent::OpenTargetSelector),
             KeyCode::Char('w') => Some(InputEvent::OpenWorktreeSelector),
+            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                Some(InputEvent::Quit)
+            }
             KeyCode::Char('c') => Some(InputEvent::OpenContextSelector),
             KeyCode::Char('y') => Some(InputEvent::CopyHunk),
             KeyCode::Char('Y') => Some(InputEvent::CopyFileDiff),

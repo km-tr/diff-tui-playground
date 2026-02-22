@@ -44,10 +44,11 @@ impl GitCli {
     fn run_allow_empty(cmd: &mut Command) -> Result<String> {
         debug!("Running: {:?}", cmd);
         let output = cmd.output().context("Failed to execute git command")?;
-        // `git diff` returns exit code 1 when there are differences, which is normal.
-        // However, exit codes >= 128 indicate real errors (e.g., invalid revision).
+        // Some git porcelain commands exit with 1 for non-error conditions
+        // (e.g., `git diff --exit-code`, `git grep` with no matches).
+        // Exit codes >= 128 are fatal errors (e.g., invalid revision, bad range).
         let code = output.status.code().unwrap_or(-1);
-        if code >= 128 || code < 0 {
+        if !(0..128).contains(&code) {
             let stderr = String::from_utf8_lossy(&output.stderr);
             bail!("git command failed (exit {}): {}", code, stderr.trim());
         }

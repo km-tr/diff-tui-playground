@@ -282,7 +282,7 @@ fn resolve_and_switch(
 
             let ctx = GitContext {
                 repo_root: root.clone(),
-                worktree_path: path.to_path_buf(),
+                worktree_path: root.clone(),
                 git_dir: None,
                 current_branch: branch.clone(),
                 head_ref: head,
@@ -290,6 +290,9 @@ fn resolve_and_switch(
                 is_unborn: unborn,
                 source: ContextSource::Cwd,
             };
+
+            // Recompute default base for the new repo
+            state.default_base = git.find_default_base(&root, &state.config.default_base);
 
             state.context = Some(ctx);
             state.generation += 1;
@@ -329,46 +332,40 @@ fn open_context_selector(state: &mut AppState, _git: &Arc<GitCli>, tx: &Sender<I
     // 3. Recent contexts
     // 4. Pane discovery candidates
     let mut items: Vec<String> = Vec::new();
+    let mut seen_paths: Vec<PathBuf> = Vec::new();
 
     // Current
     if let Some(ref ctx) = state.context {
         items.push(format!("{} [current]", ctx));
+        seen_paths.push(ctx.worktree_path.clone());
     }
 
     // Worktrees
     for wt in &state.worktrees_cache {
-        let label = format!("{} [worktree]", wt);
-        if !items
-            .iter()
-            .any(|i| i.contains(&wt.path.display().to_string()))
-        {
-            items.push(label);
+        if !seen_paths.contains(&wt.path) {
+            items.push(format!("{} [worktree]", wt));
+            seen_paths.push(wt.path.clone());
         }
     }
 
     // Recent contexts
     for rc in &state.persistent.recent_contexts {
-        let label = if let Some(ref b) = rc.branch {
-            format!("{} ({}) [recent]", rc.path.display(), b)
-        } else {
-            format!("{} [recent]", rc.path.display())
-        };
-        if !items
-            .iter()
-            .any(|i| i.contains(&rc.path.display().to_string()))
-        {
+        if !seen_paths.contains(&rc.path) {
+            let label = if let Some(ref b) = rc.branch {
+                format!("{} ({}) [recent]", rc.path.display(), b)
+            } else {
+                format!("{} [recent]", rc.path.display())
+            };
             items.push(label);
+            seen_paths.push(rc.path.clone());
         }
     }
 
     // Pane candidates
     for pc in &state.pane_candidates {
-        let label = format!("{} [{}]", pc.repo_root.display(), pc.label);
-        if !items
-            .iter()
-            .any(|i| i.contains(&pc.repo_root.display().to_string()))
-        {
-            items.push(label);
+        if !seen_paths.contains(&pc.repo_root) {
+            items.push(format!("{} [{}]", pc.repo_root.display(), pc.label));
+            seen_paths.push(pc.repo_root.clone());
         }
     }
 

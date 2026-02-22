@@ -434,7 +434,13 @@ pub fn handle_internal_event(state: &mut AppState, event: InternalEvent) {
                 return;
             }
             state.files = files;
-            state.file_selected = state.file_selected.min(state.files.len().saturating_sub(1));
+            // Clamp to filtered list length so selection stays valid with active filters
+            let filtered_len = state.filtered_file_indices().len();
+            state.file_selected = if filtered_len > 0 {
+                state.file_selected.min(filtered_len - 1)
+            } else {
+                0
+            };
             state.loading = false;
             state.current_diff = None;
             state.diff_scroll = 0;
@@ -472,6 +478,9 @@ pub fn handle_internal_event(state: &mut AppState, event: InternalEvent) {
             state.current_diff = Some(diff);
             state.diff_scroll = 0;
             state.current_hunk = 0;
+            // Clear stale search matches from previous diff
+            state.search.matches.clear();
+            state.search.current_match = 0;
         }
         InternalEvent::GitRefsLoaded { refs } => {
             state.refs_cache = refs;
@@ -560,7 +569,8 @@ fn scroll_to_hunk(state: &mut AppState) {
         let mut line_offset = 0;
         for (i, hunk) in diff.hunks.iter().enumerate() {
             if i == state.current_hunk {
-                state.diff_scroll = line_offset;
+                state.diff_scroll =
+                    line_offset.min(state.diff_total_lines.saturating_sub(1));
                 break;
             }
             line_offset += hunk.lines.len();
