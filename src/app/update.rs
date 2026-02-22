@@ -446,12 +446,19 @@ pub fn handle_internal_event(state: &mut AppState, event: InternalEvent) {
         }
         InternalEvent::GitDiffUpdated {
             generation,
-            file_path: _,
+            file_path,
             diff,
         } => {
             if generation < state.generation {
                 debug!("Ignoring stale diff update");
                 return;
+            }
+            // Drop diff if it's for a file that is no longer selected
+            if let Some(idx) = state.actual_selected_file_index() {
+                if idx < state.files.len() && state.files[idx].path != file_path {
+                    debug!("Ignoring diff for deselected file: {}", file_path);
+                    return;
+                }
             }
             // Calculate total lines for scrolling, accounting for truncation
             let raw_total: usize = diff.hunks.iter().map(|h| h.lines.len()).sum();

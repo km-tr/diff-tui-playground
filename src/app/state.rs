@@ -346,12 +346,21 @@ impl App {
                             }
                             let cmd = update::handle_input(&mut self.state, input);
                             if let Some(cmd) = cmd {
+                                let is_context_switch = matches!(
+                                    cmd,
+                                    commands::Command::SwitchContext(_)
+                                        | commands::Command::SwitchWorktree(_)
+                                );
                                 commands::execute(
                                     cmd,
                                     &mut self.state,
                                     &self.git,
                                     &self.internal_tx,
                                 );
+                                // Restart watcher when context may have changed
+                                if is_context_switch && self.state.context.is_some() {
+                                    _watcher = self.start_watcher();
+                                }
                             }
                         }
                     }
