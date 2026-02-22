@@ -17,10 +17,8 @@ pub fn parse_name_status(output: &str) -> Vec<FileEntry> {
 
 fn parse_name_status_line(line: &str) -> Option<FileEntry> {
     let parts: Vec<&str> = line.split('\t').collect();
-    if parts.is_empty() {
-        return None;
-    }
-
+    // split('\t') always returns at least one element; the empty case is
+    // handled by chars().next()? on the status field below.
     let status_str = parts[0].trim();
     let status_char = status_str.chars().next()?;
     let status = FileStatus::from_char(status_char);
@@ -172,5 +170,48 @@ mod tests {
         assert_eq!(entries[0].deletions, 5);
         assert_eq!(entries[1].additions, 20);
         assert_eq!(entries[1].deletions, 0);
+    }
+
+    #[test]
+    fn test_merge_numstat_rename_brace() {
+        let mut entries = vec![FileEntry {
+            path: "src/new.rs".into(),
+            old_path: Some("src/old.rs".into()),
+            status: FileStatus::Renamed,
+            additions: 0,
+            deletions: 0,
+        }];
+        let numstat = "3\t1\tsrc/{old.rs => new.rs}\n";
+        merge_numstat(&mut entries, numstat);
+        assert_eq!(entries[0].additions, 3);
+        assert_eq!(entries[0].deletions, 1);
+    }
+
+    #[test]
+    fn test_merge_numstat_rename_plain() {
+        let mut entries = vec![FileEntry {
+            path: "new_name.rs".into(),
+            old_path: Some("old_name.rs".into()),
+            status: FileStatus::Renamed,
+            additions: 0,
+            deletions: 0,
+        }];
+        let numstat = "5\t2\told_name.rs => new_name.rs\n";
+        merge_numstat(&mut entries, numstat);
+        assert_eq!(entries[0].additions, 5);
+        assert_eq!(entries[0].deletions, 2);
+    }
+
+    #[test]
+    fn test_expand_rename_path() {
+        assert_eq!(
+            expand_rename_path("src/{old.rs => new.rs}"),
+            Some(("src/old.rs".into(), "src/new.rs".into()))
+        );
+        assert_eq!(
+            expand_rename_path("old.rs => new.rs"),
+            Some(("old.rs".into(), "new.rs".into()))
+        );
+        assert_eq!(expand_rename_path("src/file.rs"), None);
     }
 }

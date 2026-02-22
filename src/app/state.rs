@@ -67,6 +67,10 @@ impl Toast {
 #[derive(Debug, Clone)]
 pub struct SelectorState {
     pub items: Vec<String>,
+    /// Optional structured data parallel to `items`. When present,
+    /// `selected_data()` returns the data value instead of the display label.
+    /// Used by context/worktree selectors to avoid parsing paths from labels.
+    pub data: Vec<String>,
     pub filtered: Vec<usize>,
     pub query: String,
     pub selected: usize,
@@ -77,6 +81,18 @@ impl SelectorState {
         let filtered: Vec<usize> = (0..items.len()).collect();
         Self {
             items,
+            data: Vec::new(),
+            filtered,
+            query: String::new(),
+            selected: 0,
+        }
+    }
+
+    pub fn with_data(items: Vec<String>, data: Vec<String>) -> Self {
+        let filtered: Vec<usize> = (0..items.len()).collect();
+        Self {
+            items,
+            data,
             filtered,
             query: String::new(),
             selected: 0,
@@ -111,6 +127,17 @@ impl SelectorState {
             .get(self.selected)
             .and_then(|&i| self.items.get(i))
             .map(|s| s.as_str())
+    }
+
+    /// Returns the data value for the selected item if `data` was provided,
+    /// otherwise falls back to the display label.
+    pub fn selected_data(&self) -> Option<&str> {
+        let idx = self.filtered.get(self.selected).copied()?;
+        if !self.data.is_empty() {
+            self.data.get(idx).map(|s| s.as_str())
+        } else {
+            self.items.get(idx).map(|s| s.as_str())
+        }
     }
 }
 

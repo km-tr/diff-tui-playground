@@ -56,10 +56,14 @@ impl GitCli {
     }
 
     fn diff_args(spec: &DiffSpec) -> Vec<String> {
+        // Always enable rename detection (-M) so rename handling is consistent
+        // regardless of the user's diff.renames config setting.
         match spec {
-            DiffSpec::Worktree(WorktreeMode::Unstaged) => vec!["diff".to_string()],
+            DiffSpec::Worktree(WorktreeMode::Unstaged) => {
+                vec!["diff".to_string(), "-M".to_string()]
+            }
             DiffSpec::Worktree(WorktreeMode::Staged) => {
-                vec!["diff".to_string(), "--cached".to_string()]
+                vec!["diff".to_string(), "--cached".to_string(), "-M".to_string()]
             }
             DiffSpec::Compare { base, target } => {
                 let range = if let Some(t) = target {
@@ -67,7 +71,7 @@ impl GitCli {
                 } else {
                     format!("{}...HEAD", base)
                 };
-                vec!["diff".to_string(), range]
+                vec!["diff".to_string(), "-M".to_string(), range]
             }
         }
     }
@@ -146,7 +150,11 @@ impl GitBackend for GitCli {
         let name_status_output = Self::run_allow_empty(&mut cmd)?;
         let mut entries = name_status::parse_name_status(&name_status_output);
 
-        // Get numstat too
+        // Get numstat too.
+        // Note: two separate git invocations create a small TOCTOU window where
+        // the working tree could change between commands. This is an accepted
+        // trade-off since git does not support combining --name-status and
+        // --numstat in a single invocation.
         let mut args2 = Self::diff_args(spec);
         args2.push("--numstat".to_string());
         args2.push("--no-ext-diff".to_string());

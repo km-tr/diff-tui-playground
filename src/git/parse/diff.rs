@@ -10,6 +10,7 @@ pub fn parse_file_diff(output: &str) -> FileDiff {
     let lines: Vec<&str> = output.lines().collect();
     let mut hunks = Vec::new();
     let mut file_header = String::new();
+    let mut extended_headers: Vec<String> = Vec::new();
     let mut old_file = String::new();
     let mut new_file = String::new();
     let mut is_binary = false;
@@ -33,20 +34,28 @@ pub fn parse_file_diff(output: &str) -> FileDiff {
             break;
         } else if line.starts_with("Binary files") {
             is_binary = true;
+            extended_headers.push(line.to_string());
             i += 1;
             break;
         } else if line.starts_with("new file mode") {
             is_new_file = true;
+            extended_headers.push(line.to_string());
         } else if line.starts_with("deleted file mode") {
             is_deleted = true;
+            extended_headers.push(line.to_string());
         } else if line.starts_with("rename from") || line.starts_with("rename to") {
             is_rename = true;
+            extended_headers.push(line.to_string());
         } else if line.starts_with("Submodule")
             || (line.starts_with("index ") && line.contains(" 160000"))
             || line.starts_with("new file mode 160000")
             || line.starts_with("deleted file mode 160000")
         {
             is_submodule = true;
+            extended_headers.push(line.to_string());
+        } else if !line.is_empty() {
+            // Other extended header lines: index, similarity index, old mode, new mode, etc.
+            extended_headers.push(line.to_string());
         }
         i += 1;
     }
@@ -108,6 +117,7 @@ pub fn parse_file_diff(output: &str) -> FileDiff {
 
     FileDiff {
         file_header,
+        extended_headers,
         old_file,
         new_file,
         hunks,

@@ -260,7 +260,12 @@ pub fn handle_input(state: &mut AppState, event: InputEvent) -> Option<Command> 
                 .iter()
                 .map(|w| w.to_string())
                 .collect();
-            state.selector = Some(SelectorState::new(items));
+            let paths: Vec<String> = state
+                .worktrees_cache
+                .iter()
+                .map(|w| w.path.display().to_string())
+                .collect();
+            state.selector = Some(SelectorState::with_data(items, paths));
             state.overlay = Overlay::WorktreeSelector;
             None
         }
@@ -298,12 +303,20 @@ pub fn handle_input(state: &mut AppState, event: InputEvent) -> Option<Command> 
             None
         }
         InputEvent::SelectorConfirm => {
-            let selected = state
-                .selector
-                .as_ref()
-                .and_then(|s| s.selected_item())
-                .map(|s| s.to_string());
             let overlay = state.overlay.clone();
+            // For worktree/context selectors, use data (path) instead of label
+            let selected = match overlay {
+                Overlay::WorktreeSelector | Overlay::ContextSelector => state
+                    .selector
+                    .as_ref()
+                    .and_then(|s| s.selected_data())
+                    .map(|s| s.to_string()),
+                _ => state
+                    .selector
+                    .as_ref()
+                    .and_then(|s| s.selected_item())
+                    .map(|s| s.to_string()),
+            };
             state.overlay = Overlay::None;
             state.selector = None;
 

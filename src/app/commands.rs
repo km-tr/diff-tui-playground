@@ -91,11 +91,21 @@ fn load_refs_and_worktrees(state: &AppState, git: &Arc<GitCli>, tx: &Sender<Inte
         let tx = tx.clone();
         let path = ctx.worktree_path.clone();
         std::thread::spawn(move || {
-            if let Ok(refs) = git.list_refs(&path) {
-                let _ = tx.send(InternalEvent::GitRefsLoaded { refs });
+            match git.list_refs(&path) {
+                Ok(refs) => {
+                    let _ = tx.send(InternalEvent::GitRefsLoaded { refs });
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to list refs: {}", e);
+                }
             }
-            if let Ok(wts) = git.list_worktrees(&path) {
-                let _ = tx.send(InternalEvent::GitWorktreesLoaded { worktrees: wts });
+            match git.list_worktrees(&path) {
+                Ok(wts) => {
+                    let _ = tx.send(InternalEvent::GitWorktreesLoaded { worktrees: wts });
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to list worktrees: {}", e);
+                }
             }
         });
     }
@@ -168,6 +178,11 @@ fn build_full_diff_text(diff: &crate::git::model::FileDiff) -> String {
         text.push_str(&diff.file_header);
         text.push('\n');
     }
+    // Extended headers: index, similarity index, rename from/to, mode changes, Binary files, etc.
+    for header in &diff.extended_headers {
+        text.push_str(header);
+        text.push('\n');
+    }
     if !diff.old_file.is_empty() {
         text.push_str("--- ");
         text.push_str(&diff.old_file);
@@ -230,11 +245,9 @@ fn switch_worktree(
     state: &mut AppState,
     git: &Arc<GitCli>,
     tx: &Sender<InternalEvent>,
-    selection: &str,
+    path_str: &str,
 ) {
-    // Parse the selection to extract the path
-    // Format is: "/path/to/worktree (branch) [main worktree]"
-    let path_str = selection.split(" (").next().unwrap_or(selection).trim();
+    // path_str is the raw path from selector data (not a formatted label)
     let path = PathBuf::from(path_str);
 
     if !path.exists() {
@@ -252,18 +265,9 @@ fn switch_context(
     state: &mut AppState,
     git: &Arc<GitCli>,
     tx: &Sender<InternalEvent>,
-    selection: &str,
+    path_str: &str,
 ) {
-    // Parse the selection to extract the path
-    // Various formats from different sources, but path is always first
-    let path_str = selection
-        .split(" [")
-        .next()
-        .unwrap_or(selection)
-        .split(" (")
-        .next()
-        .unwrap_or(selection)
-        .trim();
+    // path_str is the raw path from selector data (not a formatted label)
     let path = PathBuf::from(path_str);
 
     if !path.exists() {
@@ -360,11 +364,13 @@ fn open_context_selector(state: &mut AppState, _git: &Arc<GitCli>, tx: &Sender<I
     // 3. Recent contexts
     // 4. Pane discovery candidates
     let mut items: Vec<String> = Vec::new();
+    let mut paths: Vec<String> = Vec::new();
     let mut seen_paths: Vec<PathBuf> = Vec::new();
 
     // Current
     if let Some(ref ctx) = state.context {
         items.push(format!("{} [current]", ctx));
+        paths.push(ctx.worktree_path.display().to_string());
         seen_paths.push(ctx.worktree_path.clone());
     }
 
@@ -372,6 +378,7 @@ fn open_context_selector(state: &mut AppState, _git: &Arc<GitCli>, tx: &Sender<I
     for wt in &state.worktrees_cache {
         if !seen_paths.contains(&wt.path) {
             items.push(format!("{} [worktree]", wt));
+            paths.push(wt.path.display().to_string());
             seen_paths.push(wt.path.clone());
         }
     }
@@ -385,6 +392,7 @@ fn open_context_selector(state: &mut AppState, _git: &Arc<GitCli>, tx: &Sender<I
                 format!("{} [recent]", rc.path.display())
             };
             items.push(label);
+            paths.push(rc.path.display().to_string());
             seen_paths.push(rc.path.clone());
         }
     }
@@ -393,11 +401,12 @@ fn open_context_selector(state: &mut AppState, _git: &Arc<GitCli>, tx: &Sender<I
     for pc in &state.pane_candidates {
         if !seen_paths.contains(&pc.repo_root) {
             items.push(format!("{} [{}]", pc.repo_root.display(), pc.label));
+            paths.push(pc.repo_root.display().to_string());
             seen_paths.push(pc.repo_root.clone());
         }
     }
 
-    state.selector = Some(SelectorState::new(items));
+    state.selector = Some(SelectorState::with_data(items, paths));
     state.overlay = Overlay::ContextSelector;
 
     // Trigger pane discovery refresh

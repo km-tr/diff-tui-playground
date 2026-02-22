@@ -146,6 +146,9 @@ impl FileStatus {
 #[derive(Debug, Clone)]
 pub struct FileDiff {
     pub file_header: String,
+    /// Extended header lines between `diff --git` and `---`/`+++`
+    /// (e.g. `index ...`, `similarity index`, `rename from/to`, `new file mode`, etc.)
+    pub extended_headers: Vec<String>,
     pub old_file: String,
     pub new_file: String,
     pub hunks: Vec<Hunk>,
