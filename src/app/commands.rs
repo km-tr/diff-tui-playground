@@ -105,9 +105,10 @@ fn load_diff(state: &mut AppState, git: &Arc<GitCli>, tx: &Sender<InternalEvent>
     if state.context.is_none() || state.files.is_empty() {
         return;
     }
-    let idx = state
-        .actual_selected_file_index()
-        .unwrap_or(state.file_selected);
+    let idx = match state.actual_selected_file_index() {
+        Some(i) => i,
+        None => return,
+    };
     if idx >= state.files.len() {
         return;
     }
@@ -161,19 +162,24 @@ fn copy_hunk(state: &mut AppState) {
     }
 }
 
-fn copy_file_diff(state: &mut AppState) {
-    if let Some(ref diff) = state.current_diff {
-        let mut text = String::new();
-        if !diff.file_header.is_empty() {
-            text.push_str(&diff.file_header);
+fn build_full_diff_text(diff: &crate::git::model::FileDiff) -> String {
+    let mut text = String::new();
+    if !diff.file_header.is_empty() {
+        text.push_str(&diff.file_header);
+        text.push('\n');
+    }
+    for hunk in &diff.hunks {
+        for line in &hunk.lines {
+            text.push_str(&line.content);
             text.push('\n');
         }
-        for hunk in &diff.hunks {
-            for line in &hunk.lines {
-                text.push_str(&line.content);
-                text.push('\n');
-            }
-        }
+    }
+    text
+}
+
+fn copy_file_diff(state: &mut AppState) {
+    if let Some(ref diff) = state.current_diff {
+        let text = build_full_diff_text(diff);
         match clipboard::copy_to_clipboard(&text) {
             Ok(()) => {
                 state.toast = Some(Toast::new("File diff copied", Duration::from_secs(2)));
@@ -192,17 +198,7 @@ fn copy_file_diff(state: &mut AppState) {
 
 fn export_to_file(state: &mut AppState, path: &str) {
     if let Some(ref diff) = state.current_diff {
-        let mut text = String::new();
-        if !diff.file_header.is_empty() {
-            text.push_str(&diff.file_header);
-            text.push('\n');
-        }
-        for hunk in &diff.hunks {
-            for line in &hunk.lines {
-                text.push_str(&line.content);
-                text.push('\n');
-            }
-        }
+        let text = build_full_diff_text(diff);
         match std::fs::write(path, &text) {
             Ok(()) => {
                 state.toast = Some(Toast::new(
@@ -302,6 +298,9 @@ fn resolve_and_switch(
             state
                 .persistent
                 .add_recent_context(root, branch, state.config.max_recent_contexts);
+            if let Err(e) = state.persistent.save() {
+                tracing::warn!("Failed to save persistent state: {}", e);
+            }
 
             state.toast = Some(Toast::new(
                 format!("Switched to {}", path.display()),
@@ -312,17 +311,7 @@ fn resolve_and_switch(
             reload_files(state, git, tx);
 
             // Reload refs and worktrees
-            let git2 = git.clone();
-            let tx2 = tx.clone();
-            let path2 = path.to_path_buf();
-            std::thread::spawn(move || {
-                if let Ok(refs) = git2.list_refs(&path2) {
-                    let _ = tx2.send(InternalEvent::GitRefsLoaded { refs });
-                }
-                if let Ok(wts) = git2.list_worktrees(&path2) {
-                    let _ = tx2.send(InternalEvent::GitWorktreesLoaded { worktrees: wts });
-                }
-            });
+            load_refs_and_worktrees(state, git, tx);
         }
         Err(e) => {
             state.toast = Some(Toast::new(

@@ -8,8 +8,8 @@ use crate::app::state::SelectorState;
 
 pub fn draw_selector(f: &mut Frame, area: Rect, sel: &SelectorState, title: &str) {
     // Center the selector
-    let width = area.width.clamp(30, 70);
-    let height = area.height.clamp(5, 20);
+    let width = area.width.min(70).max(area.width.min(30));
+    let height = area.height.min(20).max(area.height.min(5));
     let x = (area.width.saturating_sub(width)) / 2;
     let y = (area.height.saturating_sub(height)) / 2;
     let rect = Rect::new(x, y, width, height);

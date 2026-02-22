@@ -25,7 +25,8 @@ pub fn handle_input(state: &mut AppState, event: InputEvent) -> Option<Command> 
         InputEvent::MoveDown => {
             match state.focus {
                 FocusPane::FileList => {
-                    if !state.files.is_empty() && state.file_selected < state.files.len() - 1 {
+                    let filtered_len = state.filtered_file_indices().len();
+                    if filtered_len > 0 && state.file_selected < filtered_len - 1 {
                         state.file_selected += 1;
                         return Some(Command::LoadDiff);
                     }
@@ -69,7 +70,7 @@ pub fn handle_input(state: &mut AppState, event: InputEvent) -> Option<Command> 
         InputEvent::GoBottom => {
             match state.focus {
                 FocusPane::FileList => {
-                    let last = state.files.len().saturating_sub(1);
+                    let last = state.filtered_file_indices().len().saturating_sub(1);
                     if state.file_selected != last {
                         state.file_selected = last;
                         return Some(Command::LoadDiff);
@@ -102,7 +103,7 @@ pub fn handle_input(state: &mut AppState, event: InputEvent) -> Option<Command> 
             match state.focus {
                 FocusPane::FileList => {
                     let old = state.file_selected;
-                    let max = state.files.len().saturating_sub(1);
+                    let max = state.filtered_file_indices().len().saturating_sub(1);
                     state.file_selected = (state.file_selected + page_size).min(max);
                     if state.file_selected != old {
                         return Some(Command::LoadDiff);
@@ -186,18 +187,19 @@ pub fn handle_input(state: &mut AppState, event: InputEvent) -> Option<Command> 
         InputEvent::ToggleMode => {
             match &state.diff_spec {
                 DiffSpec::Worktree(_) => {
-                    if state.context.as_ref().is_none_or(|c| c.is_unborn) {
+                    if state.context.as_ref().map_or(true, |c| c.is_unborn) {
                         state.toast = Some(Toast::new(
                             "Cannot use Compare mode: no commits yet",
                             Duration::from_secs(3),
                         ));
                         return None;
                     }
-                    // Switch to Compare mode
+                    // Switch to Compare mode, using persisted base or discovered default
                     let base = state
                         .persistent
                         .last_base
                         .clone()
+                        .or_else(|| state.default_base.clone())
                         .unwrap_or_else(|| "main".to_string());
                     state.diff_spec = DiffSpec::Compare { base, target: None };
                 }
@@ -451,8 +453,14 @@ pub fn handle_internal_event(state: &mut AppState, event: InternalEvent) {
                 debug!("Ignoring stale diff update");
                 return;
             }
-            // Calculate total lines for scrolling
-            let total: usize = diff.hunks.iter().map(|h| h.lines.len()).sum();
+            // Calculate total lines for scrolling, accounting for truncation
+            let raw_total: usize = diff.hunks.iter().map(|h| h.lines.len()).sum();
+            let truncate_max = state.config.truncate_max_lines;
+            let total = if raw_total > truncate_max {
+                truncate_max + 1 // +1 for truncation message
+            } else {
+                raw_total
+            };
             state.diff_total_lines = total;
             state.current_diff = Some(diff);
             state.diff_scroll = 0;
@@ -469,6 +477,7 @@ pub fn handle_internal_event(state: &mut AppState, event: InternalEvent) {
             default_base,
         } => {
             state.context = Some(context);
+            state.default_base = default_base.clone();
 
             // Restore diff spec from persistence
             match state.persistent.last_mode.as_deref() {

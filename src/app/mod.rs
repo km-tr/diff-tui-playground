@@ -39,6 +39,7 @@ pub fn print_keys() {
     println!("  o          Export diff to file");
     println!();
     println!("Other:");
+    println!("  /          Filter files");
     println!("  r          Reload");
     println!("  ?          Help");
     println!("  q/Esc      Quit (or close overlay)");

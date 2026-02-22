@@ -6,7 +6,7 @@ use ratatui::Frame;
 
 pub fn draw_help(f: &mut Frame, area: Rect) {
     let width = area.width.clamp(40, 65);
-    let height = area.height.clamp(10, 28);
+    let height = area.height.clamp(10, 34);
     let x = (area.width.saturating_sub(width)) / 2;
     let y = (area.height.saturating_sub(height)) / 2;
     let rect = Rect::new(x, y, width, height);

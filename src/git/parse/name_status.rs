@@ -56,6 +56,28 @@ fn parse_name_status_line(line: &str) -> Option<FileEntry> {
     }
 }
 
+/// Expand a numstat rename path like "src/{old.rs => new.rs}"
+/// to ("src/old.rs", "src/new.rs")
+fn expand_rename_path(path: &str) -> Option<(String, String)> {
+    if let Some(brace_start) = path.find('{') {
+        if let Some(brace_end) = path.find('}') {
+            let prefix = &path[..brace_start];
+            let suffix = &path[brace_end + 1..];
+            let inner = &path[brace_start + 1..brace_end];
+            if let Some((old, new)) = inner.split_once(" => ") {
+                return Some((
+                    format!("{}{}{}", prefix, old, suffix),
+                    format!("{}{}{}", prefix, new, suffix),
+                ));
+            }
+        }
+    }
+    if let Some((old, new)) = path.split_once(" => ") {
+        return Some((old.to_string(), new.to_string()));
+    }
+    None
+}
+
 /// Parse `git diff --numstat` output and merge into existing entries
 pub fn merge_numstat(entries: &mut [FileEntry], numstat_output: &str) {
     for line in numstat_output.lines() {
@@ -69,12 +91,23 @@ pub fn merge_numstat(entries: &mut [FileEntry], numstat_output: &str) {
             let deletions = parts[1].parse::<u32>().unwrap_or(0);
             let path = parts[2];
 
-            // For renames, numstat uses the format "old => new" or just the new path
+            // For renames, numstat uses formats like "old => new" or "src/{old.rs => new.rs}"
+            let expanded = expand_rename_path(path);
             if let Some(entry) = entries.iter_mut().find(|e| {
-                e.path == path
-                    || path.contains(" => ")
-                        && (path.contains(&e.path)
-                            || e.old_path.as_ref().is_some_and(|op| path.contains(op)))
+                if e.path == path {
+                    return true;
+                }
+                if let Some((ref old, ref new)) = expanded {
+                    if e.path == *new || e.path == *old {
+                        return true;
+                    }
+                    if let Some(ref op) = e.old_path {
+                        if *op == *old || *op == *new {
+                            return true;
+                        }
+                    }
+                }
+                false
             }) {
                 entry.additions = additions;
                 entry.deletions = deletions;

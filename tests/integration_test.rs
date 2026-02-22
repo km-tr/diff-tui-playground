@@ -18,6 +18,12 @@ fn run_git(dir: &Path, args: &[&str]) -> String {
         .args(args)
         .output()
         .expect("Failed to run git");
+    assert!(
+        output.status.success(),
+        "git {:?} failed: {}",
+        args,
+        String::from_utf8_lossy(&output.stderr)
+    );
     String::from_utf8_lossy(&output.stdout).into_owned()
 }
 

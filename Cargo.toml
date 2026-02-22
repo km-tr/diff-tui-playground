@@ -2,6 +2,7 @@
 name = "git-review-tui"
 version = "1.0.0"
 edition = "2021"
+rust-version = "1.80.0"
 description = "A TUI tool for reviewing Git diffs"
 license = "MIT"
 readme = "README.md"

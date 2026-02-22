@@ -88,6 +88,7 @@ impl fmt::Display for FileEntry {
             FileStatus::Copied => "C",
             FileStatus::Untracked => "?",
             FileStatus::TypeChanged => "T",
+            FileStatus::Unmerged => "U",
             FileStatus::Unknown => " ",
         };
         if let Some(ref old) = self.old_path {
@@ -107,6 +108,7 @@ pub enum FileStatus {
     Copied,
     Untracked,
     TypeChanged,
+    Unmerged,
     Unknown,
 }
 
@@ -120,6 +122,7 @@ impl FileStatus {
             'C' => FileStatus::Copied,
             '?' => FileStatus::Untracked,
             'T' => FileStatus::TypeChanged,
+            'U' => FileStatus::Unmerged,
             _ => FileStatus::Unknown,
         }
     }
@@ -133,6 +136,7 @@ impl FileStatus {
             FileStatus::Copied => "Copied",
             FileStatus::Untracked => "Untracked",
             FileStatus::TypeChanged => "TypeChanged",
+            FileStatus::Unmerged => "Unmerged",
             FileStatus::Unknown => "Unknown",
         }
     }
@@ -192,7 +196,15 @@ pub struct WorktreeEntry {
 
 impl fmt::Display for WorktreeEntry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let branch = self.branch.as_deref().unwrap_or("(detached)");
+        let branch = if let Some(ref b) = self.branch {
+            b.as_str()
+        } else if self.is_bare {
+            "(bare)"
+        } else if self.is_detached {
+            "(detached)"
+        } else {
+            "(unknown)"
+        };
         let marker = if self.is_main { " [main worktree]" } else { "" };
         write!(f, "{} ({}){}", self.path.display(), branch, marker)
     }

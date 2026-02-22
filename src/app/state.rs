@@ -182,6 +182,9 @@ pub struct AppState {
     // Pending command from internal event handling
     pub pending_command: Option<commands::Command>,
 
+    // Discovered default base branch
+    pub default_base: Option<String>,
+
     // Fallback poll timer
     pub last_poll: Instant,
 }
@@ -217,6 +220,7 @@ impl AppState {
             term_height: 0,
             loading: false,
             pending_command: None,
+            default_base: None,
             last_poll: Instant::now(),
         }
     }
@@ -300,8 +304,8 @@ impl App {
             // Execute any pending command from internal event handling
             if let Some(cmd) = self.state.pending_command.take() {
                 commands::execute(cmd, &mut self.state, &self.git, &self.internal_tx);
-                // Start watcher after first context resolve if needed
-                if _watcher.is_none() && self.state.context.is_some() {
+                // Start or restart watcher when context is available
+                if self.state.context.is_some() {
                     _watcher = self.start_watcher();
                 }
             }
@@ -379,7 +383,7 @@ impl App {
 
                 let ctx = GitContext {
                     repo_root: root.clone(),
-                    worktree_path: root,
+                    worktree_path: repo_path.clone(),
                     git_dir: None,
                     current_branch: branch,
                     head_ref: head,
@@ -490,14 +494,12 @@ impl App {
                 KeyCode::Esc => Some(InputEvent::SelectorCancel),
                 KeyCode::Enter => Some(InputEvent::SelectorConfirm),
                 KeyCode::Backspace => Some(InputEvent::SelectorBackspace),
-                KeyCode::Down | KeyCode::Char('j')
-                    if key.modifiers.contains(KeyModifiers::CONTROL) =>
-                {
+                KeyCode::Down => Some(InputEvent::SelectorMoveDown),
+                KeyCode::Up => Some(InputEvent::SelectorMoveUp),
+                KeyCode::Char('j') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                     Some(InputEvent::SelectorMoveDown)
                 }
-                KeyCode::Up | KeyCode::Char('k')
-                    if key.modifiers.contains(KeyModifiers::CONTROL) =>
-                {
+                KeyCode::Char('k') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                     Some(InputEvent::SelectorMoveUp)
                 }
                 KeyCode::Char(c) => Some(InputEvent::SelectorInput(c)),

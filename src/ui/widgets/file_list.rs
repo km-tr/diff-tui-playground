@@ -46,6 +46,12 @@ pub fn draw_file_list(f: &mut Frame, area: Rect, state: &AppState, focused: bool
     // Visible height
     let inner_height = area.height.saturating_sub(2) as usize;
 
+    if inner_height == 0 {
+        let list = List::new(Vec::<ListItem>::new()).block(block);
+        f.render_widget(list, area);
+        return;
+    }
+
     // Adjust scroll to keep selection visible
     let scroll = {
         let mut scroll = state.file_scroll;
@@ -53,7 +59,7 @@ pub fn draw_file_list(f: &mut Frame, area: Rect, state: &AppState, focused: bool
             scroll = state.file_selected;
         }
         if state.file_selected >= scroll + inner_height {
-            scroll = state.file_selected.saturating_sub(inner_height - 1);
+            scroll = state.file_selected.saturating_sub(inner_height.saturating_sub(1));
         }
         scroll
     };
@@ -83,6 +89,7 @@ pub fn draw_file_list(f: &mut Frame, area: Rect, state: &AppState, focused: bool
                 FileStatus::Copied => "C",
                 FileStatus::Untracked => "?",
                 FileStatus::TypeChanged => "T",
+                FileStatus::Unmerged => "U",
                 FileStatus::Unknown => " ",
             };
 

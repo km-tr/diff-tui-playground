@@ -41,7 +41,11 @@ pub fn parse_file_diff(output: &str) -> FileDiff {
             is_deleted = true;
         } else if line.starts_with("rename from") || line.starts_with("rename to") {
             is_rename = true;
-        } else if line.starts_with("Submodule") || line.contains("160000") {
+        } else if line.starts_with("Submodule")
+            || (line.starts_with("index ") && line.contains(" 160000"))
+            || line.starts_with("new file mode 160000")
+            || line.starts_with("deleted file mode 160000")
+        {
             is_submodule = true;
         }
         i += 1;

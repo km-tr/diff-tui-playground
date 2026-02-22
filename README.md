@@ -70,6 +70,7 @@ RUST_LOG=debug git-review-tui --log-file /tmp/grt.log
 | `n` | Next hunk |
 | `p` | Previous hunk |
 | `f` | Search in diff |
+| `/` | Filter files |
 
 ### Mode
 
