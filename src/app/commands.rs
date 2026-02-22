@@ -168,6 +168,16 @@ fn build_full_diff_text(diff: &crate::git::model::FileDiff) -> String {
         text.push_str(&diff.file_header);
         text.push('\n');
     }
+    if !diff.old_file.is_empty() {
+        text.push_str("--- ");
+        text.push_str(&diff.old_file);
+        text.push('\n');
+    }
+    if !diff.new_file.is_empty() {
+        text.push_str("+++ ");
+        text.push_str(&diff.new_file);
+        text.push('\n');
+    }
     for hunk in &diff.hunks {
         for line in &hunk.lines {
             text.push_str(&line.content);
@@ -277,8 +287,26 @@ fn resolve_and_switch(
         Ok(root) => {
             let branch = git.current_branch(&root).unwrap_or(None);
             let head = git.head_ref(&root).unwrap_or(None);
-            let unborn = git.is_unborn(&root).unwrap_or(false);
-            let detached = git.is_detached(&root).unwrap_or(false);
+            let unborn = match git.is_unborn(&root) {
+                Ok(v) => v,
+                Err(e) => {
+                    state.toast = Some(Toast::new(
+                        format!("Failed to check repo state: {}", e),
+                        Duration::from_secs(3),
+                    ));
+                    return;
+                }
+            };
+            let detached = match git.is_detached(&root) {
+                Ok(v) => v,
+                Err(e) => {
+                    state.toast = Some(Toast::new(
+                        format!("Failed to check repo state: {}", e),
+                        Duration::from_secs(3),
+                    ));
+                    return;
+                }
+            };
 
             let ctx = GitContext {
                 repo_root: root.clone(),

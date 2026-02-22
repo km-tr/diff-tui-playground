@@ -482,6 +482,9 @@ impl App {
                 KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                     Some(InputEvent::SearchPrev)
                 }
+                KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    Some(InputEvent::Quit)
+                }
                 KeyCode::Char(c) => Some(InputEvent::SearchInput(c)),
                 _ => None,
             };
@@ -493,6 +496,9 @@ impl App {
                 KeyCode::Esc => Some(InputEvent::FileFilterCancel),
                 KeyCode::Enter => Some(InputEvent::FileFilterConfirm),
                 KeyCode::Backspace => Some(InputEvent::FileFilterBackspace),
+                KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    Some(InputEvent::Quit)
+                }
                 KeyCode::Char(c) => Some(InputEvent::FileFilterInput(c)),
                 _ => None,
             };
@@ -504,6 +510,9 @@ impl App {
                 KeyCode::Esc => Some(InputEvent::ExportCancel),
                 KeyCode::Enter => Some(InputEvent::ExportConfirm),
                 KeyCode::Backspace => Some(InputEvent::ExportBackspace),
+                KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    Some(InputEvent::Quit)
+                }
                 KeyCode::Char(c) => Some(InputEvent::ExportInput(c)),
                 _ => None,
             };
@@ -528,6 +537,9 @@ impl App {
                 }
                 KeyCode::Char('k') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                     Some(InputEvent::SelectorMoveUp)
+                }
+                KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    Some(InputEvent::Quit)
                 }
                 KeyCode::Char(c) => Some(InputEvent::SelectorInput(c)),
                 _ => None,

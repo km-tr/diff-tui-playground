@@ -4,8 +4,7 @@ use crate::git::model::{FileEntry, FileStatus};
 pub fn parse_name_status(output: &str) -> Vec<FileEntry> {
     let mut entries = Vec::new();
     for line in output.lines() {
-        let line = line.trim();
-        if line.is_empty() {
+        if line.trim().is_empty() {
             continue;
         }
         let entry = parse_name_status_line(line);
@@ -81,8 +80,7 @@ fn expand_rename_path(path: &str) -> Option<(String, String)> {
 /// Parse `git diff --numstat` output and merge into existing entries
 pub fn merge_numstat(entries: &mut [FileEntry], numstat_output: &str) {
     for line in numstat_output.lines() {
-        let line = line.trim();
-        if line.is_empty() {
+        if line.trim().is_empty() {
             continue;
         }
         let parts: Vec<&str> = line.split('\t').collect();
