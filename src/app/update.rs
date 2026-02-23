@@ -467,7 +467,7 @@ pub fn handle_internal_event(state: &mut AppState, event: InternalEvent) {
             state.current_hunk = 0;
             // Auto-load diff for selected file
             if !state.files.is_empty() {
-                state.pending_command = Some(Command::LoadDiff);
+                state.pending_commands.push(Command::LoadDiff);
             }
         }
         InternalEvent::GitDiffUpdated {
@@ -479,11 +479,18 @@ pub fn handle_internal_event(state: &mut AppState, event: InternalEvent) {
                 debug!("Ignoring stale diff update");
                 return;
             }
-            // Drop diff if it's for a file that is no longer selected
-            if let Some(idx) = state.actual_selected_file_index() {
-                if idx < state.files.len() && state.files[idx].path != file_path {
-                    debug!("Ignoring diff for deselected file: {}", file_path);
+            // Drop diff if no file is currently selected (e.g. filter yields empty list)
+            // or if it's for a file that is no longer selected
+            match state.actual_selected_file_index() {
+                None => {
+                    debug!("Ignoring diff update: no file selected");
                     return;
+                }
+                Some(idx) => {
+                    if idx < state.files.len() && state.files[idx].path != file_path {
+                        debug!("Ignoring diff for deselected file: {}", file_path);
+                        return;
+                    }
                 }
             }
             // Calculate total lines for scrolling, accounting for truncation
@@ -538,7 +545,7 @@ pub fn handle_internal_event(state: &mut AppState, event: InternalEvent) {
             }
 
             state.generation += 1;
-            state.pending_command = Some(Command::InitialLoad);
+            state.pending_commands.push(Command::InitialLoad);
         }
         InternalEvent::PanesDiscovered { panes } => {
             state.pane_candidates = panes;
@@ -546,7 +553,7 @@ pub fn handle_internal_event(state: &mut AppState, event: InternalEvent) {
         InternalEvent::WatchTriggered => {
             state.generation += 1;
             state.loading = true;
-            state.pending_command = Some(Command::Reload);
+            state.pending_commands.push(Command::Reload);
         }
         InternalEvent::Error(msg) => {
             state.last_error = Some(msg.clone());

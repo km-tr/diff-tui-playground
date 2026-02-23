@@ -171,6 +171,8 @@ pub struct AppState {
     pub files: Vec<FileEntry>,
     pub file_selected: usize,
     pub file_scroll: usize,
+    // Cache for filtered_file_indices (invalidated when files or file_filter changes)
+    filtered_cache: Option<(u64, String, Vec<usize>)>, // (files_version, filter, indices)
     pub file_filter: String,
 
     // Diff view
@@ -211,8 +213,9 @@ pub struct AppState {
     // Loading indicator
     pub loading: bool,
 
-    // Pending command from internal event handling
-    pub pending_command: Option<commands::Command>,
+    // Pending commands from internal event handling (Vec to avoid dropping
+    // commands when multiple events arrive in a single drain loop)
+    pub pending_commands: Vec<commands::Command>,
 
     // Discovered default base branch
     pub default_base: Option<String>,
@@ -232,6 +235,7 @@ impl AppState {
             files: Vec::new(),
             file_selected: 0,
             file_scroll: 0,
+            filtered_cache: None,
             file_filter: String::new(),
             current_diff: None,
             diff_scroll: 0,
@@ -251,15 +255,21 @@ impl AppState {
             term_width: 0,
             term_height: 0,
             loading: false,
-            pending_command: None,
+            pending_commands: Vec::new(),
             default_base: None,
             last_poll: Instant::now(),
         }
     }
 
-    /// Get the filtered file list indices
-    pub fn filtered_file_indices(&self) -> Vec<usize> {
-        if self.file_filter.is_empty() {
+    /// Get the filtered file list indices (cached; recomputed only when
+    /// `file_filter` or `generation` changes).
+    pub fn filtered_file_indices(&mut self) -> Vec<usize> {
+        if let Some((gen, ref filter, ref indices)) = self.filtered_cache {
+            if gen == self.generation && *filter == self.file_filter {
+                return indices.clone();
+            }
+        }
+        let result: Vec<usize> = if self.file_filter.is_empty() {
             (0..self.files.len()).collect()
         } else {
             use fuzzy_matcher::skim::SkimMatcherV2;
@@ -277,11 +287,13 @@ impl AppState {
                 .collect();
             scored.sort_by(|a, b| b.1.cmp(&a.1));
             scored.into_iter().map(|(i, _)| i).collect()
-        }
+        };
+        self.filtered_cache = Some((self.generation, self.file_filter.clone(), result.clone()));
+        result
     }
 
     /// Get the actual selected file index in the unfiltered list
-    pub fn actual_selected_file_index(&self) -> Option<usize> {
+    pub fn actual_selected_file_index(&mut self) -> Option<usize> {
         let filtered = self.filtered_file_indices();
         filtered.get(self.file_selected).copied()
     }
@@ -325,7 +337,7 @@ impl App {
         loop {
             // Draw
             terminal.draw(|f| {
-                ui::render::draw(f, &self.state);
+                ui::render::draw(f, &mut self.state);
             })?;
 
             // Process internal events (non-blocking)
@@ -333,9 +345,12 @@ impl App {
                 update::handle_internal_event(&mut self.state, ev);
             }
 
-            // Execute any pending command from internal event handling
-            if let Some(cmd) = self.state.pending_command.take() {
-                commands::execute(cmd, &mut self.state, &self.git, &self.internal_tx);
+            // Execute all pending commands from internal event handling
+            if !self.state.pending_commands.is_empty() {
+                let cmds: Vec<_> = std::mem::take(&mut self.state.pending_commands);
+                for cmd in cmds {
+                    commands::execute(cmd, &mut self.state, &self.git, &self.internal_tx);
+                }
                 // Start or restart watcher when context is available
                 if self.state.context.is_some() {
                     _watcher = self.start_watcher();

@@ -7,7 +7,7 @@ use ratatui::Frame;
 use crate::app::state::AppState;
 use crate::git::model::FileStatus;
 
-pub fn draw_file_list(f: &mut Frame, area: Rect, state: &AppState, focused: bool) {
+pub fn draw_file_list(f: &mut Frame, area: Rect, state: &mut AppState, focused: bool) {
     let border_color = if focused {
         Color::Blue
     } else {

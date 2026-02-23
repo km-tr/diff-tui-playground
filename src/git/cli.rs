@@ -142,6 +142,8 @@ impl GitBackend for GitCli {
         let mut args = Self::diff_args(spec);
         args.push("--name-status".to_string());
         args.push("--no-ext-diff".to_string());
+        // Use -z for NUL-delimited output to avoid C-quoting of non-ASCII paths
+        args.push("-z".to_string());
 
         let mut cmd = Self::git_cmd(repo);
         for a in &args {
@@ -158,6 +160,7 @@ impl GitBackend for GitCli {
         let mut args2 = Self::diff_args(spec);
         args2.push("--numstat".to_string());
         args2.push("--no-ext-diff".to_string());
+        args2.push("-z".to_string());
         let mut cmd2 = Self::git_cmd(repo);
         for a in &args2 {
             cmd2.arg(a);

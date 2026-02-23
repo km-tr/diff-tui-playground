@@ -1,56 +1,70 @@
 use crate::git::model::{FileEntry, FileStatus};
 
-/// Parse `git diff --name-status` output
+/// Parse `git diff --name-status -z` NUL-delimited output.
+///
+/// With `-z`, git outputs raw (unquoted) paths separated by NUL bytes:
+///   STATUS\0PATH\0           — for regular changes (M, A, D, T, U, ?)
+///   STATUS\0OLD_PATH\0NEW\0  — for renames/copies (R, C)
 pub fn parse_name_status(output: &str) -> Vec<FileEntry> {
     let mut entries = Vec::new();
-    for line in output.lines() {
-        if line.trim().is_empty() {
+    let fields: Vec<&str> = output.split('\0').collect();
+    let mut i = 0;
+
+    while i < fields.len() {
+        let field = fields[i];
+        if field.is_empty() {
+            i += 1;
             continue;
         }
-        let entry = parse_name_status_line(line);
-        if let Some(entry) = entry {
-            entries.push(entry);
+
+        let status_char = match field.chars().next() {
+            Some(c) => c,
+            None => {
+                i += 1;
+                continue;
+            }
+        };
+        let status = FileStatus::from_char(status_char);
+
+        match status {
+            FileStatus::Renamed | FileStatus::Copied => {
+                // Consume old_path and new_path
+                if i + 2 < fields.len() {
+                    let old_path = fields[i + 1];
+                    let new_path = fields[i + 2];
+                    entries.push(FileEntry {
+                        path: new_path.to_string(),
+                        old_path: Some(old_path.to_string()),
+                        status,
+                        additions: 0,
+                        deletions: 0,
+                    });
+                    i += 3;
+                } else {
+                    break;
+                }
+            }
+            _ => {
+                // Consume path
+                if i + 1 < fields.len() {
+                    let path = fields[i + 1];
+                    if !path.is_empty() {
+                        entries.push(FileEntry {
+                            path: path.to_string(),
+                            old_path: None,
+                            status,
+                            additions: 0,
+                            deletions: 0,
+                        });
+                    }
+                    i += 2;
+                } else {
+                    break;
+                }
+            }
         }
     }
     entries
-}
-
-fn parse_name_status_line(line: &str) -> Option<FileEntry> {
-    let parts: Vec<&str> = line.split('\t').collect();
-    // split('\t') always returns at least one element; the empty case is
-    // handled by chars().next()? on the status field below.
-    let status_str = parts[0].trim();
-    let status_char = status_str.chars().next()?;
-    let status = FileStatus::from_char(status_char);
-
-    match status {
-        FileStatus::Renamed | FileStatus::Copied => {
-            if parts.len() >= 3 {
-                Some(FileEntry {
-                    path: parts[2].to_string(),
-                    old_path: Some(parts[1].to_string()),
-                    status,
-                    additions: 0,
-                    deletions: 0,
-                })
-            } else {
-                None
-            }
-        }
-        _ => {
-            if parts.len() >= 2 {
-                Some(FileEntry {
-                    path: parts[1].to_string(),
-                    old_path: None,
-                    status,
-                    additions: 0,
-                    deletions: 0,
-                })
-            } else {
-                None
-            }
-        }
-    }
 }
 
 /// Expand a numstat rename path like "src/{old.rs => new.rs}"
@@ -75,20 +89,51 @@ fn expand_rename_path(path: &str) -> Option<(String, String)> {
     None
 }
 
-/// Parse `git diff --numstat` output and merge into existing entries
+/// Parse `git diff --numstat -z` NUL-delimited output and merge into existing entries.
+///
+/// With `-z`, numstat output uses NUL as the record terminator:
+///   ADD\tDEL\tPATH\0              — for regular changes
+///   ADD\tDEL\t\0OLD_PATH\0NEW\0   — for renames (path field empty, then old\0new\0)
 pub fn merge_numstat(entries: &mut [FileEntry], numstat_output: &str) {
-    for line in numstat_output.lines() {
-        if line.trim().is_empty() {
+    let fields: Vec<&str> = numstat_output.split('\0').collect();
+    let mut i = 0;
+
+    while i < fields.len() {
+        let field = fields[i];
+        if field.is_empty() {
+            i += 1;
             continue;
         }
-        let parts: Vec<&str> = line.split('\t').collect();
-        if parts.len() >= 3 {
-            // Binary files show "-" for additions/deletions; parse as 0
-            let additions = parts[0].parse::<u32>().unwrap_or(0);
-            let deletions = parts[1].parse::<u32>().unwrap_or(0);
-            let path = parts[2];
 
-            // For renames, numstat uses formats like "old => new" or "src/{old.rs => new.rs}"
+        let parts: Vec<&str> = field.split('\t').collect();
+        if parts.len() < 3 {
+            i += 1;
+            continue;
+        }
+
+        // Binary files show "-" for additions/deletions; parse as 0
+        let additions = parts[0].parse::<u32>().unwrap_or(0);
+        let deletions = parts[1].parse::<u32>().unwrap_or(0);
+        let path = parts[2];
+
+        if path.is_empty() {
+            // Rename: path is empty, next two NUL-fields are old_path and new_path
+            if i + 2 < fields.len() {
+                let old_path = fields[i + 1];
+                let new_path = fields[i + 2];
+                if let Some(entry) = entries.iter_mut().find(|e| {
+                    e.path == new_path || e.path == old_path
+                        || e.old_path.as_deref() == Some(old_path)
+                }) {
+                    entry.additions = additions;
+                    entry.deletions = deletions;
+                }
+                i += 3;
+            } else {
+                break;
+            }
+        } else {
+            // Regular file or brace-expanded rename
             let expanded = expand_rename_path(path);
             if let Some(entry) = entries.iter_mut().find(|e| {
                 if e.path == path {
@@ -109,6 +154,7 @@ pub fn merge_numstat(entries: &mut [FileEntry], numstat_output: &str) {
                 entry.additions = additions;
                 entry.deletions = deletions;
             }
+            i += 1;
         }
     }
 }
@@ -119,7 +165,8 @@ mod tests {
 
     #[test]
     fn test_parse_name_status_basic() {
-        let output = "M\tsrc/main.rs\nA\tsrc/new.rs\nD\told.rs\n";
+        // NUL-delimited format: STATUS\0PATH\0...
+        let output = "M\0src/main.rs\0A\0src/new.rs\0D\0old.rs\0";
         let entries = parse_name_status(output);
         assert_eq!(entries.len(), 3);
         assert_eq!(entries[0].status, FileStatus::Modified);
@@ -132,12 +179,22 @@ mod tests {
 
     #[test]
     fn test_parse_name_status_rename() {
-        let output = "R100\told_name.rs\tnew_name.rs\n";
+        let output = "R100\0old_name.rs\0new_name.rs\0";
         let entries = parse_name_status(output);
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].status, FileStatus::Renamed);
         assert_eq!(entries[0].path, "new_name.rs");
         assert_eq!(entries[0].old_path, Some("old_name.rs".to_string()));
+    }
+
+    #[test]
+    fn test_parse_name_status_unicode() {
+        // Non-ASCII paths should come through raw (not C-quoted) with -z
+        let output = "M\0src/日本語.rs\0A\0données/café.txt\0";
+        let entries = parse_name_status(output);
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].path, "src/日本語.rs");
+        assert_eq!(entries[1].path, "données/café.txt");
     }
 
     #[test]
@@ -164,12 +221,29 @@ mod tests {
                 deletions: 0,
             },
         ];
-        let numstat = "10\t5\tsrc/main.rs\n20\t0\tsrc/new.rs\n";
+        // NUL-delimited numstat: ADD\tDEL\tPATH\0
+        let numstat = "10\t5\tsrc/main.rs\020\t0\tsrc/new.rs\0";
         merge_numstat(&mut entries, numstat);
         assert_eq!(entries[0].additions, 10);
         assert_eq!(entries[0].deletions, 5);
         assert_eq!(entries[1].additions, 20);
         assert_eq!(entries[1].deletions, 0);
+    }
+
+    #[test]
+    fn test_merge_numstat_rename_nul() {
+        // With -z, renames have empty path then old\0new\0
+        let mut entries = vec![FileEntry {
+            path: "src/new.rs".into(),
+            old_path: Some("src/old.rs".into()),
+            status: FileStatus::Renamed,
+            additions: 0,
+            deletions: 0,
+        }];
+        let numstat = "3\t1\t\0src/old.rs\0src/new.rs\0";
+        merge_numstat(&mut entries, numstat);
+        assert_eq!(entries[0].additions, 3);
+        assert_eq!(entries[0].deletions, 1);
     }
 
     #[test]
@@ -181,7 +255,7 @@ mod tests {
             additions: 0,
             deletions: 0,
         }];
-        let numstat = "3\t1\tsrc/{old.rs => new.rs}\n";
+        let numstat = "3\t1\tsrc/{old.rs => new.rs}\0";
         merge_numstat(&mut entries, numstat);
         assert_eq!(entries[0].additions, 3);
         assert_eq!(entries[0].deletions, 1);
@@ -196,7 +270,7 @@ mod tests {
             additions: 0,
             deletions: 0,
         }];
-        let numstat = "5\t2\told_name.rs => new_name.rs\n";
+        let numstat = "5\t2\told_name.rs => new_name.rs\0";
         merge_numstat(&mut entries, numstat);
         assert_eq!(entries[0].additions, 5);
         assert_eq!(entries[0].deletions, 2);

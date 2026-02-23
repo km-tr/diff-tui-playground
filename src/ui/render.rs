@@ -10,7 +10,7 @@ use crate::util::path::display_path;
 
 use super::widgets::{diff_view, error_panel, file_list, help, selector, toast};
 
-pub fn draw(f: &mut Frame, state: &AppState) {
+pub fn draw(f: &mut Frame, state: &mut AppState) {
     let size = f.area();
 
     // Main layout: Header | Body | Footer
@@ -132,7 +132,7 @@ fn draw_header(f: &mut Frame, area: Rect, state: &AppState) {
     f.render_widget(diff_para, chunks[1]);
 }
 
-fn draw_body(f: &mut Frame, area: Rect, state: &AppState) {
+fn draw_body(f: &mut Frame, area: Rect, state: &mut AppState) {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(30), Constraint::Percentage(70)])
@@ -207,7 +207,7 @@ fn draw_search_bar(f: &mut Frame, area: Rect, state: &AppState) {
     f.render_widget(para, rect);
 }
 
-fn draw_file_filter_bar(f: &mut Frame, area: Rect, state: &AppState) {
+fn draw_file_filter_bar(f: &mut Frame, area: Rect, state: &mut AppState) {
     let width = area.width.min(60);
     let x = (area.width.saturating_sub(width)) / 2;
     let y = area.height.saturating_sub(4);
