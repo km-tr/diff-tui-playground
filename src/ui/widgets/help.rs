@@ -5,8 +5,8 @@ use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::Frame;
 
 pub fn draw_help(f: &mut Frame, area: Rect) {
-    let width = area.width.min(65).max(area.width.min(40));
-    let height = area.height.min(34).max(area.height.min(10));
+    let width = area.width.min(65);
+    let height = area.height.min(34);
     let x = (area.width.saturating_sub(width)) / 2;
     let y = (area.height.saturating_sub(height)) / 2;
     let rect = Rect::new(x, y, width, height);

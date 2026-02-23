@@ -196,6 +196,10 @@ fn build_full_diff_text(diff: &crate::git::model::FileDiff) -> String {
         text.push('\n');
     }
     for hunk in &diff.hunks {
+        if !hunk.header.is_empty() {
+            text.push_str(&hunk.header);
+            text.push('\n');
+        }
         for line in &hunk.lines {
             text.push_str(&line.content);
             text.push('\n');
