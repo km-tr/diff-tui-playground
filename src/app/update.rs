@@ -454,6 +454,7 @@ pub fn handle_internal_event(state: &mut AppState, event: InternalEvent) {
                 return;
             }
             state.files = files;
+            state.invalidate_filtered_cache();
             // Clamp to filtered list length so selection stays valid with active filters
             let filtered_len = state.filtered_file_indices().len();
             state.file_selected = if filtered_len > 0 {

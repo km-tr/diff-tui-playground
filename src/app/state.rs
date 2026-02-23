@@ -261,6 +261,10 @@ impl AppState {
         }
     }
 
+    pub fn invalidate_filtered_cache(&mut self) {
+        self.filtered_cache = None;
+    }
+
     /// Get the filtered file list indices (cached; recomputed only when
     /// `file_filter` or `generation` changes).
     pub fn filtered_file_indices(&mut self) -> Vec<usize> {

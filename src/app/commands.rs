@@ -64,6 +64,7 @@ pub fn execute(cmd: Command, state: &mut AppState, git: &Arc<GitCli>, tx: &Sende
 
 fn reload_files(state: &mut AppState, git: &Arc<GitCli>, tx: &Sender<InternalEvent>) {
     if state.context.is_none() {
+        state.loading = false;
         return;
     }
     let ctx = state.context.as_ref().unwrap().clone();
@@ -196,10 +197,6 @@ fn build_full_diff_text(diff: &crate::git::model::FileDiff) -> String {
         text.push('\n');
     }
     for hunk in &diff.hunks {
-        if !hunk.header.is_empty() {
-            text.push_str(&hunk.header);
-            text.push('\n');
-        }
         for line in &hunk.lines {
             text.push_str(&line.content);
             text.push('\n');
