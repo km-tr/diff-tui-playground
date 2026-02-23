@@ -150,12 +150,19 @@ fn load_diff(state: &mut AppState, git: &Arc<GitCli>, tx: &Sender<InternalEvent>
 fn copy_hunk(state: &mut AppState) {
     if let Some(ref diff) = state.current_diff {
         if let Some(hunk) = diff.hunks.get(state.current_hunk) {
-            let text: String = hunk
-                .lines
-                .iter()
-                .map(|l| l.content.as_str())
-                .collect::<Vec<_>>()
-                .join("\n");
+            let mut text = String::new();
+            if !hunk.header.is_empty() {
+                text.push_str(&hunk.header);
+                text.push('\n');
+            }
+            text.push_str(
+                &hunk
+                    .lines
+                    .iter()
+                    .map(|l| l.content.as_str())
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            );
             match clipboard::copy_to_clipboard(&text) {
                 Ok(()) => {
                     state.toast = Some(Toast::new("Hunk copied", Duration::from_secs(2)));
@@ -197,6 +204,10 @@ fn build_full_diff_text(diff: &crate::git::model::FileDiff) -> String {
         text.push('\n');
     }
     for hunk in &diff.hunks {
+        if !hunk.header.is_empty() {
+            text.push_str(&hunk.header);
+            text.push('\n');
+        }
         for line in &hunk.lines {
             text.push_str(&line.content);
             text.push('\n');
@@ -248,6 +259,8 @@ fn export_to_file(state: &mut AppState, path: &str) {
                 ));
             }
         }
+    } else {
+        state.toast = Some(Toast::new("No diff to export", Duration::from_secs(2)));
     }
 }
 
