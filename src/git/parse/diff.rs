@@ -37,6 +37,22 @@ pub fn parse_file_diff(output: &str) -> FileDiff {
             extended_headers.push(line.to_string());
             i += 1;
             break;
+        } else if line.starts_with("Submodule")
+            || (line.starts_with("index ") && line.contains(" 160000"))
+        {
+            // Submodule indicators that don't overlap with other checks
+            is_submodule = true;
+            extended_headers.push(line.to_string());
+        } else if line.starts_with("new file mode 160000") {
+            // Submodule new file — must precede generic "new file mode" check
+            is_new_file = true;
+            is_submodule = true;
+            extended_headers.push(line.to_string());
+        } else if line.starts_with("deleted file mode 160000") {
+            // Submodule deleted file — must precede generic "deleted file mode" check
+            is_deleted = true;
+            is_submodule = true;
+            extended_headers.push(line.to_string());
         } else if line.starts_with("new file mode") {
             is_new_file = true;
             extended_headers.push(line.to_string());
@@ -45,13 +61,6 @@ pub fn parse_file_diff(output: &str) -> FileDiff {
             extended_headers.push(line.to_string());
         } else if line.starts_with("rename from") || line.starts_with("rename to") {
             is_rename = true;
-            extended_headers.push(line.to_string());
-        } else if line.starts_with("Submodule")
-            || (line.starts_with("index ") && line.contains(" 160000"))
-            || line.starts_with("new file mode 160000")
-            || line.starts_with("deleted file mode 160000")
-        {
-            is_submodule = true;
             extended_headers.push(line.to_string());
         } else if !line.is_empty() {
             // Other extended header lines: index, similarity index, old mode, new mode, etc.

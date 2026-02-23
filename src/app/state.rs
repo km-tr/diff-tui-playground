@@ -430,10 +430,19 @@ impl App {
         let default_bases = self.state.config.default_base.clone();
 
         std::thread::spawn(move || match git.repo_root(&repo_path) {
-            Ok(root) => {
-                let branch = git.current_branch(&root).unwrap_or(None);
-                let head = git.head_ref(&root).unwrap_or(None);
-                let unborn = match git.is_unborn(&root) {
+            Ok(worktree_root) => {
+                // Derive the true repository root from the git common directory.
+                // For linked worktrees, --show-toplevel returns the worktree path
+                // while --git-common-dir points to the main repo's .git directory.
+                let repo_root = git
+                    .git_common_dir(&worktree_root)
+                    .ok()
+                    .and_then(|common| common.parent().map(|p| p.to_path_buf()))
+                    .unwrap_or_else(|| worktree_root.clone());
+
+                let branch = git.current_branch(&worktree_root).unwrap_or(None);
+                let head = git.head_ref(&worktree_root).unwrap_or(None);
+                let unborn = match git.is_unborn(&worktree_root) {
                     Ok(v) => v,
                     Err(e) => {
                         let _ = tx.send(InternalEvent::Error(format!(
@@ -443,7 +452,7 @@ impl App {
                         return;
                     }
                 };
-                let detached = match git.is_detached(&root) {
+                let detached = match git.is_detached(&worktree_root) {
                     Ok(v) => v,
                     Err(e) => {
                         let _ = tx.send(InternalEvent::Error(format!(
@@ -453,11 +462,11 @@ impl App {
                         return;
                     }
                 };
-                let default_base = git.find_default_base(&root, &default_bases);
+                let default_base = git.find_default_base(&worktree_root, &default_bases);
 
                 let ctx = GitContext {
-                    repo_root: root.clone(),
-                    worktree_path: root.clone(),
+                    repo_root,
+                    worktree_path: worktree_root,
                     git_dir: None,
                     current_branch: branch,
                     head_ref: head,

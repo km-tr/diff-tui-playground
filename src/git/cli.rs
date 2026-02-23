@@ -93,6 +93,21 @@ impl GitBackend for GitCli {
         Ok(PathBuf::from(output.trim()))
     }
 
+    fn git_common_dir(&self, repo: &Path) -> Result<PathBuf> {
+        let output = Self::run(Self::git_cmd(repo).arg("rev-parse").arg("--git-common-dir"))?;
+        let raw = PathBuf::from(output.trim());
+        // --git-common-dir may return a relative path; resolve against the repo
+        let absolute = if raw.is_relative() {
+            repo.join(&raw)
+        } else {
+            raw
+        };
+        // Canonicalize to resolve `.git/../.git` etc.
+        absolute
+            .canonicalize()
+            .with_context(|| format!("Failed to canonicalize git common dir: {}", absolute.display()))
+    }
+
     fn current_branch(&self, repo: &Path) -> Result<Option<String>> {
         let result = Self::run(
             Self::git_cmd(repo)

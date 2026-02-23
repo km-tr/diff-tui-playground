@@ -51,10 +51,10 @@ pub fn execute(cmd: Command, state: &mut AppState, git: &Arc<GitCli>, tx: &Sende
             export_to_file(state, &path);
         }
         Command::SwitchWorktree(selection) => {
-            switch_to_path(state, git, tx, &selection);
+            switch_to_path(state, git, tx, &selection, ContextSource::Worktree);
         }
         Command::SwitchContext(selection) => {
-            switch_to_path(state, git, tx, &selection);
+            switch_to_path(state, git, tx, &selection, ContextSource::Recent);
         }
         Command::OpenContextSelector => {
             open_context_selector(state, git, tx);
@@ -253,6 +253,7 @@ fn switch_to_path(
     git: &Arc<GitCli>,
     tx: &Sender<InternalEvent>,
     path_str: &str,
+    source: ContextSource,
 ) {
     // path_str is the raw path from selector data (not a formatted label)
     let path = PathBuf::from(path_str);
@@ -265,7 +266,7 @@ fn switch_to_path(
         return;
     }
 
-    resolve_and_switch(state, git, tx, &path);
+    resolve_and_switch(state, git, tx, &path, source);
 }
 
 fn resolve_and_switch(
@@ -273,12 +274,22 @@ fn resolve_and_switch(
     git: &Arc<GitCli>,
     tx: &Sender<InternalEvent>,
     path: &Path,
+    source: ContextSource,
 ) {
     match git.repo_root(path) {
-        Ok(root) => {
-            let branch = git.current_branch(&root).unwrap_or(None);
-            let head = git.head_ref(&root).unwrap_or(None);
-            let unborn = match git.is_unborn(&root) {
+        Ok(worktree_root) => {
+            // Derive the true repository root from the git common directory.
+            // For linked worktrees, --show-toplevel returns the worktree path
+            // while --git-common-dir points to the main repo's .git directory.
+            let repo_root = git
+                .git_common_dir(&worktree_root)
+                .ok()
+                .and_then(|common| common.parent().map(|p| p.to_path_buf()))
+                .unwrap_or_else(|| worktree_root.clone());
+
+            let branch = git.current_branch(&worktree_root).unwrap_or(None);
+            let head = git.head_ref(&worktree_root).unwrap_or(None);
+            let unborn = match git.is_unborn(&worktree_root) {
                 Ok(v) => v,
                 Err(e) => {
                     state.toast = Some(Toast::new(
@@ -288,7 +299,7 @@ fn resolve_and_switch(
                     return;
                 }
             };
-            let detached = match git.is_detached(&root) {
+            let detached = match git.is_detached(&worktree_root) {
                 Ok(v) => v,
                 Err(e) => {
                     state.toast = Some(Toast::new(
@@ -300,26 +311,27 @@ fn resolve_and_switch(
             };
 
             let ctx = GitContext {
-                repo_root: root.clone(),
-                worktree_path: root.clone(),
+                repo_root,
+                worktree_path: worktree_root.clone(),
                 git_dir: None,
                 current_branch: branch.clone(),
                 head_ref: head,
                 is_detached: detached,
                 is_unborn: unborn,
-                source: ContextSource::Cwd,
+                source,
             };
 
             // Recompute default base for the new repo
-            state.default_base = git.find_default_base(&root, &state.config.default_base);
+            state.default_base =
+                git.find_default_base(&worktree_root, &state.config.default_base);
 
             state.context = Some(ctx);
             state.generation += 1;
 
-            // Update persistent
+            // Update persistent — store the worktree path so we can switch back to it
             state
                 .persistent
-                .add_recent_context(root, branch, state.config.max_recent_contexts);
+                .add_recent_context(worktree_root, branch, state.config.max_recent_contexts);
             if let Err(e) = state.persistent.save() {
                 tracing::warn!("Failed to save persistent state: {}", e);
             }

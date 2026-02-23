@@ -6,8 +6,13 @@ use super::model::*;
 
 /// Trait for Git operations - allows mocking in tests
 pub trait GitBackend: Send {
-    /// Resolve the repository root from a path
+    /// Resolve the repository root from a path (via `--show-toplevel`)
     fn repo_root(&self, path: &Path) -> Result<std::path::PathBuf>;
+
+    /// Resolve the git common directory (via `--git-common-dir`).
+    /// For linked worktrees this returns the main repo's `.git` directory;
+    /// its parent is the true repository root.
+    fn git_common_dir(&self, repo: &Path) -> Result<std::path::PathBuf>;
 
     /// Get the current branch name (None if detached or unborn)
     fn current_branch(&self, repo: &Path) -> Result<Option<String>>;
