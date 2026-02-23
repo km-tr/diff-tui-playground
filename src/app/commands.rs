@@ -166,6 +166,8 @@ fn copy_hunk(state: &mut AppState) {
                     ));
                 }
             }
+        } else {
+            state.toast = Some(Toast::new("No hunk to copy", Duration::from_secs(2)));
         }
     } else {
         state.toast = Some(Toast::new("No diff to copy", Duration::from_secs(2)));

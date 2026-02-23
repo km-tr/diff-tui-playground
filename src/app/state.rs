@@ -351,8 +351,9 @@ impl App {
                 for cmd in cmds {
                     commands::execute(cmd, &mut self.state, &self.git, &self.internal_tx);
                 }
-                // Start or restart watcher when context is available
-                if self.state.context.is_some() {
+                // Start watcher on first context load (not on every command batch).
+                // Context-switch restarts are handled by the is_context_switch guard below.
+                if _watcher.is_none() && self.state.context.is_some() {
                     _watcher = self.start_watcher();
                 }
             }

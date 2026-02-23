@@ -124,6 +124,16 @@ pub fn parse_file_diff(output: &str) -> FileDiff {
         }
     }
 
+    // Binary diffs have no --- / +++ lines; derive filenames from "diff --git a/X b/X"
+    if old_file.is_empty() && !file_header.is_empty() {
+        if let Some(rest) = file_header.strip_prefix("diff --git ") {
+            if let Some(mid) = rest.find(" b/") {
+                old_file = rest[..mid].to_string();
+                new_file = rest[mid + 1..].to_string();
+            }
+        }
+    }
+
     FileDiff {
         file_header,
         extended_headers,
@@ -208,6 +218,9 @@ Binary files a/image.png and b/image.png differ
         let result = parse_file_diff(diff);
         assert!(result.is_binary);
         assert!(result.hunks.is_empty());
+        // Binary diffs derive filenames from the "diff --git" header
+        assert_eq!(result.old_file, "a/image.png");
+        assert_eq!(result.new_file, "b/image.png");
     }
 
     #[test]
