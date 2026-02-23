@@ -100,7 +100,7 @@ fn test_compare_mode() {
     run_git(dir.path(), &["commit", "-m", "init"]);
 
     // Get the default branch name
-    let default_branch = run_git(dir.path(), &["branch", "--show-current"]);
+    let default_branch = run_git(dir.path(), &["rev-parse", "--abbrev-ref", "HEAD"]);
     let default_branch = default_branch.trim();
 
     // Create branch and make changes

@@ -38,7 +38,10 @@ impl GitCli {
             let stderr = String::from_utf8_lossy(&output.stderr);
             bail!("git command failed: {}", stderr.trim());
         }
-        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+        match String::from_utf8(output.stdout) {
+            Ok(s) => Ok(s),
+            Err(e) => Ok(String::from_utf8_lossy(e.as_bytes()).into_owned()),
+        }
     }
 
     fn run_allow_empty(cmd: &mut Command) -> Result<String> {
