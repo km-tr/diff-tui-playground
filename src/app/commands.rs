@@ -186,12 +186,12 @@ fn build_full_diff_text(diff: &crate::git::model::FileDiff) -> String {
         text.push_str(header);
         text.push('\n');
     }
-    if !diff.old_file.is_empty() {
+    if !diff.is_binary && !diff.old_file.is_empty() {
         text.push_str("--- ");
         text.push_str(&diff.old_file);
         text.push('\n');
     }
-    if !diff.new_file.is_empty() {
+    if !diff.is_binary && !diff.new_file.is_empty() {
         text.push_str("+++ ");
         text.push_str(&diff.new_file);
         text.push('\n');
