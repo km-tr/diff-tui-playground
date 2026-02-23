@@ -15,22 +15,22 @@ pub struct FileWatcher {
 
 impl FileWatcher {
     pub fn new(path: &Path, debounce: Duration, tx: Sender<InternalEvent>) -> Result<Self> {
-        let tx_clone = tx.clone();
         let mut debouncer = new_debouncer(
             debounce,
             move |res: Result<Vec<notify_debouncer_mini::DebouncedEvent>, notify::Error>| match res
             {
                 Ok(events) => {
                     let dominated_by_gitdir = events.iter().all(|e| {
-                        e.path.to_string_lossy().contains(".git/")
-                            || e.path.to_string_lossy().contains(".git\\")
+                        e.path
+                            .components()
+                            .any(|c| c.as_os_str() == ".git")
                     });
                     if dominated_by_gitdir {
                         debug!("Ignoring .git internal events");
                         return;
                     }
                     debug!("Watch triggered: {} events", events.len());
-                    let _ = tx_clone.send(InternalEvent::WatchTriggered);
+                    let _ = tx.send(InternalEvent::WatchTriggered);
                 }
                 Err(e) => {
                     error!("Watch error: {:?}", e);

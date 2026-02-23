@@ -627,7 +627,19 @@ fn scroll_to_search_match(state: &mut AppState) {
     if state.search.matches.is_empty() {
         return;
     }
-    let (hunk_idx, _line_idx) = state.search.matches[state.search.current_match];
+    let (hunk_idx, line_idx) = state.search.matches[state.search.current_match];
     state.current_hunk = hunk_idx;
+    // Scroll to the exact matched line rather than the hunk header
+    if let Some(ref diff) = state.current_diff {
+        let mut line_offset = 0;
+        for (i, hunk) in diff.hunks.iter().enumerate() {
+            if i == hunk_idx {
+                let target = line_offset + line_idx;
+                state.diff_scroll = target.min(state.diff_total_lines.saturating_sub(1));
+                return;
+            }
+            line_offset += hunk.lines.len();
+        }
+    }
     scroll_to_hunk(state);
 }

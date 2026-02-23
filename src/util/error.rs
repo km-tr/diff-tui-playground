@@ -31,6 +31,8 @@ impl fmt::Display for AppError {
     }
 }
 
+impl std::error::Error for AppError {}
+
 impl From<anyhow::Error> for AppError {
     fn from(e: anyhow::Error) -> Self {
         AppError::new(format!("{:#}", e))

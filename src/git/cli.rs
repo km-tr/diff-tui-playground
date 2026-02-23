@@ -52,6 +52,12 @@ impl GitCli {
             let stderr = String::from_utf8_lossy(&output.stderr);
             bail!("git command failed (exit {}): {}", code, stderr.trim());
         }
+        // Log stderr on non-zero exit for diagnostic purposes (exit 1 is
+        // often benign, e.g. diff --exit-code, but stderr can still help).
+        if code != 0 && !output.stderr.is_empty() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            debug!("git exited {} with stderr: {}", code, stderr.trim());
+        }
         // Prefer lossless UTF-8 conversion; fall back to lossy for non-UTF-8
         // paths (rare on modern systems). With -z output, raw bytes are used
         // and lossy conversion would replace invalid bytes with U+FFFD,

@@ -38,7 +38,7 @@ pub fn parse_file_diff(output: &str) -> FileDiff {
             i += 1;
             break;
         } else if line.starts_with("Submodule")
-            || (line.starts_with("index ") && line.contains(" 160000"))
+            || (line.starts_with("index ") && line.ends_with(" 160000"))
         {
             // Submodule indicators that don't overlap with other checks
             is_submodule = true;
