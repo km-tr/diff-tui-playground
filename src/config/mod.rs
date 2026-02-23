@@ -83,10 +83,11 @@ impl Default for WatchConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum DiscoveryMode {
     Off,
+    #[default]
     Auto,
     Tmux,
     Wezterm,
