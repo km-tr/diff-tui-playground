@@ -61,7 +61,7 @@ impl AppConfig {
     }
 
     fn default_config_path() -> Option<PathBuf> {
-        dirs::config_dir().map(|d| d.join("git-review-tui").join("config.toml"))
+        dirs::config_dir().map(|d| d.join("diffdon").join("config.toml"))
     }
 }
 

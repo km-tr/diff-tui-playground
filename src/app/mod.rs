@@ -6,7 +6,7 @@ mod update;
 pub use state::App;
 
 pub fn print_keys() {
-    println!("git-review-tui key bindings");
+    println!("diffdon key bindings");
     println!("===========================");
     println!();
     println!("Navigation:");

@@ -27,7 +27,7 @@ use config::AppConfig;
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "git-review-tui",
+    name = "diffdon",
     version,
     about = "A TUI tool for reviewing Git diffs"
 )]
@@ -62,7 +62,7 @@ fn setup_logging(log_file: Option<PathBuf>) {
         let dir = path.parent().unwrap_or_else(|| std::path::Path::new("."));
         let filename = path
             .file_name()
-            .unwrap_or_else(|| std::ffi::OsStr::new("git-review-tui.log"));
+            .unwrap_or_else(|| std::ffi::OsStr::new("diffdon.log"));
         let file_appender = tracing_appender::rolling::never(dir, filename);
         tracing_subscriber::fmt()
             .with_env_filter(filter)
@@ -104,7 +104,7 @@ fn main() -> Result<()> {
     setup_logging(cli.log_file);
     setup_panic_hook();
 
-    info!("Starting git-review-tui");
+    info!("Starting diffdon");
 
     let config = if let Some(ref path) = cli.config {
         AppConfig::load_from(path).context("Failed to load config")?

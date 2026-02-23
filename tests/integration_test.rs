@@ -261,7 +261,7 @@ fn test_numstat() {
 // CLI flag tests
 #[test]
 fn test_print_default_config_flag() {
-    let result = Command::new(env!("CARGO_BIN_EXE_git-review-tui"))
+    let result = Command::new(env!("CARGO_BIN_EXE_diffdon"))
         .arg("--print-default-config")
         .output()
         .unwrap();
@@ -275,7 +275,7 @@ fn test_print_default_config_flag() {
 
 #[test]
 fn test_print_keys_flag() {
-    let result = Command::new(env!("CARGO_BIN_EXE_git-review-tui"))
+    let result = Command::new(env!("CARGO_BIN_EXE_diffdon"))
         .arg("--print-keys")
         .output()
         .unwrap();
@@ -290,12 +290,12 @@ fn test_print_keys_flag() {
 
 #[test]
 fn test_version_flag() {
-    let result = Command::new(env!("CARGO_BIN_EXE_git-review-tui"))
+    let result = Command::new(env!("CARGO_BIN_EXE_diffdon"))
         .arg("--version")
         .output()
         .unwrap();
 
     assert!(result.status.success());
     let stdout = String::from_utf8_lossy(&result.stdout);
-    assert!(stdout.contains("git-review-tui"));
+    assert!(stdout.contains("diffdon"));
 }

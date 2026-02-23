@@ -356,6 +356,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "diffdon"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "arboard",
+ "assert_cmd",
+ "clap",
+ "crossbeam-channel",
+ "crossterm",
+ "dirs",
+ "fuzzy-matcher",
+ "insta",
+ "notify",
+ "notify-debouncer-mini",
+ "predicates",
+ "ratatui",
+ "regex",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "toml",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+ "url",
+]
+
+[[package]]
 name = "difflib"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -567,34 +595,6 @@ dependencies = [
  "r-efi",
  "wasip2",
  "wasip3",
-]
-
-[[package]]
-name = "git-review-tui"
-version = "1.0.0"
-dependencies = [
- "anyhow",
- "arboard",
- "assert_cmd",
- "clap",
- "crossbeam-channel",
- "crossterm",
- "dirs",
- "fuzzy-matcher",
- "insta",
- "notify",
- "notify-debouncer-mini",
- "predicates",
- "ratatui",
- "regex",
- "serde",
- "serde_json",
- "tempfile",
- "toml",
- "tracing",
- "tracing-appender",
- "tracing-subscriber",
- "url",
 ]
 
 [[package]]

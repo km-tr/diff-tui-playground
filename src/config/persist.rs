@@ -78,6 +78,6 @@ impl PersistentState {
     }
 
     fn state_path() -> Option<PathBuf> {
-        dirs::data_local_dir().map(|d| d.join("git-review-tui").join("state.json"))
+        dirs::data_local_dir().map(|d| d.join("diffdon").join("state.json"))
     }
 }

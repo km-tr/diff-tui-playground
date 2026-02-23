@@ -1,6 +1,6 @@
 [package]
-name = "git-review-tui"
-version = "1.0.0"
+name = "diffdon"
+version = "0.0.1"
 edition = "2021"
 rust-version = "1.80.0"
 description = "A TUI tool for reviewing Git diffs"
@@ -10,7 +10,7 @@ keywords = ["git", "diff", "tui", "review"]
 categories = ["command-line-utilities", "development-tools"]
 
 [[bin]]
-name = "git-review-tui"
+name = "diffdon"
 path = "src/main.rs"
 
 [dependencies]

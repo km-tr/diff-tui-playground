@@ -1,4 +1,4 @@
-# Contributing to git-review-tui
+# Contributing to diffdon
 
 ## Development Setup
 

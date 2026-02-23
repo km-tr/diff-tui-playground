@@ -1,4 +1,4 @@
-# git-review-tui
+# diffdon
 
 A terminal UI tool for reviewing Git diffs. Built for speed, resilience, and daily use.
 
@@ -28,25 +28,25 @@ Or build from source:
 
 ```sh
 git clone <repo-url>
-cd git-review-tui
+cd diffdon
 cargo build --release
-# Binary is at target/release/git-review-tui
+# Binary is at target/release/diffdon
 ```
 
 ## Usage
 
 ```sh
 # Review current directory
-git-review-tui
+diffdon
 
 # Review a specific repo
-git-review-tui -C /path/to/repo
+diffdon -C /path/to/repo
 
 # With a custom config
-git-review-tui --config path/to/config.toml
+diffdon --config path/to/config.toml
 
 # Enable debug logging
-RUST_LOG=debug git-review-tui --log-file /tmp/grt.log
+RUST_LOG=debug diffdon --log-file /tmp/grt.log
 ```
 
 ## Key Bindings
@@ -107,7 +107,7 @@ RUST_LOG=debug git-review-tui --log-file /tmp/grt.log
 To get the current key bindings from the binary:
 
 ```sh
-git-review-tui --print-keys
+diffdon --print-keys
 ```
 
 ## Modes
@@ -124,7 +124,7 @@ The base ref is auto-detected from: `main`, `master`, `origin/main`, `origin/mas
 
 ## Pane Discovery
 
-When you press `c` (context selector), git-review-tui scans for repos open in other terminal panes:
+When you press `c` (context selector), diffdon scans for repos open in other terminal panes:
 
 - **tmux**: reads `tmux list-panes -a` to get pane working directories
 - **WezTerm**: reads `wezterm cli list --format json` to get pane working directories
@@ -133,12 +133,12 @@ Non-local panes (e.g., SSH sessions in WezTerm) are excluded. Discovery mode is 
 
 ## Configuration
 
-Default config location: `~/.config/git-review-tui/config.toml`
+Default config location: `~/.config/diffdon/config.toml`
 
 To see the default configuration:
 
 ```sh
-git-review-tui --print-default-config
+diffdon --print-default-config
 ```
 
 ### Config options
@@ -170,7 +170,7 @@ poll_interval_secs = 30
 
 ## Persistence
 
-State is saved to `~/.local/share/git-review-tui/state.json`:
+State is saved to `~/.local/share/diffdon/state.json`:
 
 - Recent repository contexts (up to `max_recent_contexts`)
 - Last mode (worktree/compare)
