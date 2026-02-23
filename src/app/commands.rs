@@ -207,7 +207,12 @@ fn copy_file_diff(state: &mut AppState) {
         let text = build_full_diff_text(diff);
         match clipboard::copy_to_clipboard(&text) {
             Ok(()) => {
-                state.toast = Some(Toast::new("File diff copied", Duration::from_secs(2)));
+                let msg = if diff.is_truncated {
+                    "File diff copied (truncated — output exceeded size limit)"
+                } else {
+                    "File diff copied"
+                };
+                state.toast = Some(Toast::new(msg, Duration::from_secs(2)));
             }
             Err(e) => {
                 state.toast = Some(Toast::new(
@@ -226,10 +231,12 @@ fn export_to_file(state: &mut AppState, path: &str) {
         let text = build_full_diff_text(diff);
         match std::fs::write(path, &text) {
             Ok(()) => {
-                state.toast = Some(Toast::new(
-                    format!("Exported to {}", path),
-                    Duration::from_secs(3),
-                ));
+                let msg = if diff.is_truncated {
+                    format!("Exported to {} (truncated — output exceeded size limit)", path)
+                } else {
+                    format!("Exported to {}", path)
+                };
+                state.toast = Some(Toast::new(msg, Duration::from_secs(3)));
             }
             Err(e) => {
                 state.toast = Some(Toast::new(

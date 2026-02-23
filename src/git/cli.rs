@@ -52,7 +52,17 @@ impl GitCli {
             let stderr = String::from_utf8_lossy(&output.stderr);
             bail!("git command failed (exit {}): {}", code, stderr.trim());
         }
-        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+        // Prefer lossless UTF-8 conversion; fall back to lossy for non-UTF-8
+        // paths (rare on modern systems). With -z output, raw bytes are used
+        // and lossy conversion would replace invalid bytes with U+FFFD,
+        // potentially breaking path identity for later git commands.
+        match String::from_utf8(output.stdout) {
+            Ok(s) => Ok(s),
+            Err(e) => {
+                debug!("Non-UTF-8 git output; using lossy conversion");
+                Ok(String::from_utf8_lossy(e.as_bytes()).into_owned())
+            }
+        }
     }
 
     fn diff_args(spec: &DiffSpec) -> Vec<String> {
@@ -190,80 +200,71 @@ impl GitBackend for GitCli {
             cmd.arg(a);
         }
         let output = Self::run_allow_empty(&mut cmd)?;
-        // Truncate raw output at byte limit to prevent excessive memory use
-        let truncated = if output.len() > self.max_bytes {
-            // Find a safe UTF-8 boundary near the limit
+        // Truncate raw output at byte limit to prevent excessive memory use.
+        // After finding a UTF-8 boundary, also trim to the last complete line
+        // so the parser never receives a partial line mid-hunk.
+        let was_truncated = output.len() > self.max_bytes;
+        let truncated = if was_truncated {
             let mut end = self.max_bytes;
             while end > 0 && !output.is_char_boundary(end) {
                 end -= 1;
             }
-            &output[..end]
+            // Trim back to the last newline to avoid partial lines
+            if let Some(nl) = output[..end].rfind('\n') {
+                &output[..nl + 1]
+            } else {
+                &output[..end]
+            }
         } else {
             &output
         };
-        Ok(diff::parse_file_diff(truncated))
+        let mut parsed = diff::parse_file_diff(truncated);
+        parsed.is_truncated = was_truncated;
+        Ok(parsed)
     }
 
     fn list_refs(&self, repo: &Path) -> Result<Vec<RefEntry>> {
+        // Single for-each-ref call with all ref patterns; include full refname
+        // to classify each ref as local branch, remote, or tag.
+        let output = Self::run(
+            Self::git_cmd(repo)
+                .arg("for-each-ref")
+                .arg("--format=%(refname)\t%(refname:short)")
+                .arg("refs/heads/")
+                .arg("refs/remotes/")
+                .arg("refs/tags/"),
+        )?;
+
         let mut refs = Vec::new();
-
-        // Local branches
-        let output = Self::run(
-            Self::git_cmd(repo)
-                .arg("for-each-ref")
-                .arg("--format=%(refname:short)")
-                .arg("refs/heads/"),
-        );
-        if let Ok(out) = output {
-            for line in out.lines() {
-                let name = line.trim();
-                if !name.is_empty() {
-                    refs.push(RefEntry {
-                        name: name.to_string(),
-                        kind: RefKind::Branch,
-                        is_remote: false,
-                    });
-                }
+        for line in output.lines() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
             }
-        }
-
-        // Remote branches
-        let output = Self::run(
-            Self::git_cmd(repo)
-                .arg("for-each-ref")
-                .arg("--format=%(refname:short)")
-                .arg("refs/remotes/"),
-        );
-        if let Ok(out) = output {
-            for line in out.lines() {
-                let name = line.trim();
-                if !name.is_empty() && !name.ends_with("/HEAD") {
+            let (full, short) = match line.split_once('\t') {
+                Some(pair) => pair,
+                None => continue,
+            };
+            if full.starts_with("refs/heads/") {
+                refs.push(RefEntry {
+                    name: short.to_string(),
+                    kind: RefKind::Branch,
+                    is_remote: false,
+                });
+            } else if full.starts_with("refs/remotes/") {
+                if !short.ends_with("/HEAD") {
                     refs.push(RefEntry {
-                        name: name.to_string(),
+                        name: short.to_string(),
                         kind: RefKind::Branch,
                         is_remote: true,
                     });
                 }
-            }
-        }
-
-        // Tags
-        let output = Self::run(
-            Self::git_cmd(repo)
-                .arg("for-each-ref")
-                .arg("--format=%(refname:short)")
-                .arg("refs/tags/"),
-        );
-        if let Ok(out) = output {
-            for line in out.lines() {
-                let name = line.trim();
-                if !name.is_empty() {
-                    refs.push(RefEntry {
-                        name: name.to_string(),
-                        kind: RefKind::Tag,
-                        is_remote: false,
-                    });
-                }
+            } else if full.starts_with("refs/tags/") {
+                refs.push(RefEntry {
+                    name: short.to_string(),
+                    kind: RefKind::Tag,
+                    is_remote: false,
+                });
             }
         }
 

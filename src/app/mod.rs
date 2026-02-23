@@ -21,6 +21,8 @@ pub fn print_keys() {
     println!("Diff:");
     println!("  n          Next hunk");
     println!("  p          Previous hunk");
+    println!("  N          Next search match");
+    println!("  P          Previous search match");
     println!("  f          Search in diff");
     println!();
     println!("Mode:");

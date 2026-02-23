@@ -38,6 +38,7 @@ pub fn draw_help(f: &mut Frame, area: Rect) {
         Line::from(""),
         Line::from(Span::styled("Diff", header_style)),
         help_line("n/p", "Next/previous hunk", key_style, desc_style),
+        help_line("N/P", "Next/previous search match", key_style, desc_style),
         help_line("f", "Search in diff", key_style, desc_style),
         help_line("/", "Filter files", key_style, desc_style),
         Line::from(""),

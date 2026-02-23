@@ -126,6 +126,7 @@ pub fn parse_file_diff(output: &str) -> FileDiff {
         is_deleted,
         is_rename,
         is_submodule,
+        is_truncated: false,
     }
 }
 
