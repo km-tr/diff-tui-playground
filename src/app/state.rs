@@ -1,5 +1,5 @@
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -67,10 +67,9 @@ impl Toast {
 #[derive(Debug, Clone)]
 pub struct SelectorState {
     pub items: Vec<String>,
-    /// Optional structured data parallel to `items`. When present,
-    /// `selected_data()` returns the data value instead of the display label.
-    /// Used by context/worktree selectors to avoid parsing paths from labels.
-    pub data: Vec<String>,
+    /// Optional structured data parallel to `items`.
+    /// Used by context/worktree selectors to preserve raw paths.
+    pub data: Vec<PathBuf>,
     pub filtered: Vec<usize>,
     pub query: String,
     pub selected: usize,
@@ -88,7 +87,7 @@ impl SelectorState {
         }
     }
 
-    pub fn with_data(items: Vec<String>, data: Vec<String>) -> Self {
+    pub fn with_data(items: Vec<String>, data: Vec<PathBuf>) -> Self {
         assert_eq!(
             items.len(),
             data.len(),
@@ -134,15 +133,10 @@ impl SelectorState {
             .map(|s| s.as_str())
     }
 
-    /// Returns the data value for the selected item if `data` was provided,
-    /// otherwise falls back to the display label.
-    pub fn selected_data(&self) -> Option<&str> {
+    /// Returns the structured data path for the selected item.
+    pub fn selected_data(&self) -> Option<&Path> {
         let idx = self.filtered.get(self.selected).copied()?;
-        if !self.data.is_empty() {
-            self.data.get(idx).map(|s| s.as_str())
-        } else {
-            self.items.get(idx).map(|s| s.as_str())
-        }
+        self.data.get(idx).map(|s| s.as_path())
     }
 }
 

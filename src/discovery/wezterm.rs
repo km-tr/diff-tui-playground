@@ -1,7 +1,9 @@
+use std::borrow::Cow;
 use std::path::PathBuf;
 use std::process::Command;
 
 use anyhow::{Context, Result};
+use percent_encoding::percent_decode_str;
 use serde::Deserialize;
 use tracing::debug;
 use url::Url;
@@ -92,7 +94,10 @@ fn parse_cwd_url(cwd: &str) -> Option<PathBuf> {
                 if path.is_empty() {
                     None
                 } else {
-                    Some(PathBuf::from(path))
+                    let decoded = percent_decode_str(path)
+                        .decode_utf8()
+                        .unwrap_or_else(|_| Cow::Borrowed(path));
+                    Some(PathBuf::from(decoded.as_ref()))
                 }
             })
         } else {
@@ -156,6 +161,12 @@ mod tests {
         // wezterm actually emits file://hostname/path, not file:///path
         let path = parse_cwd_url("file://mymachine/home/user/project");
         assert_eq!(path, Some(PathBuf::from("/home/user/project")));
+    }
+
+    #[test]
+    fn test_parse_cwd_url_file_with_encoded_hostname_path() {
+        let path = parse_cwd_url("file://mymachine/home/user/encoded%20path");
+        assert_eq!(path, Some(PathBuf::from("/home/user/encoded path")));
     }
 
     #[test]

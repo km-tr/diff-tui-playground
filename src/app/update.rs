@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::time::Duration;
 
 use tracing::debug;
@@ -276,10 +277,10 @@ pub fn handle_input(state: &mut AppState, event: InputEvent) -> Option<Command> 
                 .iter()
                 .map(|w| w.to_string())
                 .collect();
-            let paths: Vec<String> = state
+            let paths: Vec<PathBuf> = state
                 .worktrees_cache
                 .iter()
-                .map(|w| w.path.display().to_string())
+                .map(|w| w.path.clone())
                 .collect();
             state.selector = Some(SelectorState::with_data(items, paths));
             state.overlay = Overlay::WorktreeSelector;
@@ -320,46 +321,49 @@ pub fn handle_input(state: &mut AppState, event: InputEvent) -> Option<Command> 
         }
         InputEvent::SelectorConfirm => {
             let overlay = state.overlay.clone();
-            // For worktree/context selectors, use data (path) instead of label
-            let selected = match overlay {
-                Overlay::WorktreeSelector | Overlay::ContextSelector => state
-                    .selector
-                    .as_ref()
-                    .and_then(|s| s.selected_data())
-                    .map(|s| s.to_string()),
-                _ => state
-                    .selector
-                    .as_ref()
-                    .and_then(|s| s.selected_item())
-                    .map(|s| s.to_string()),
-            };
+            let selected_item = state
+                .selector
+                .as_ref()
+                .and_then(|s| s.selected_item())
+                .map(|s| s.to_string());
+            let selected_path = state
+                .selector
+                .as_ref()
+                .and_then(|s| s.selected_data())
+                .map(|s| s.to_path_buf());
             state.overlay = Overlay::None;
             state.selector = None;
 
-            if let Some(selected) = selected {
-                match overlay {
-                    Overlay::BaseSelector => {
+            match overlay {
+                Overlay::BaseSelector => {
+                    if let Some(selected) = selected_item {
                         if let DiffSpec::Compare { ref mut base, .. } = state.diff_spec {
                             *base = selected;
                         }
                         state.generation += 1;
                         return Some(Command::Reload);
                     }
-                    Overlay::TargetSelector => {
+                }
+                Overlay::TargetSelector => {
+                    if let Some(selected) = selected_item {
                         if let DiffSpec::Compare { ref mut target, .. } = state.diff_spec {
                             *target = Some(selected);
                         }
                         state.generation += 1;
                         return Some(Command::Reload);
                     }
-                    Overlay::WorktreeSelector => {
+                }
+                Overlay::WorktreeSelector => {
+                    if let Some(selected) = selected_path {
                         return Some(Command::SwitchWorktree(selected));
                     }
-                    Overlay::ContextSelector => {
+                }
+                Overlay::ContextSelector => {
+                    if let Some(selected) = selected_path {
                         return Some(Command::SwitchContext(selected));
                     }
-                    _ => {}
                 }
+                _ => {}
             }
             None
         }

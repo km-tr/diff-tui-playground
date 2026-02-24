@@ -106,16 +106,18 @@ impl GitCli {
         let was_truncated = total > limit;
         let keep = if was_truncated { limit } else { total };
 
-        // Kill the process early if we truncated to avoid wasting resources
-        if was_truncated {
-            let _ = child.kill();
-        }
+        // Kill the process early if we truncated to avoid wasting resources.
+        // On Unix this can produce `status.code() == None` (signal exit),
+        // which is expected when we intentionally terminate the child.
+        let killed_for_truncation = was_truncated && child.kill().is_ok();
         let status = child.wait().context("Failed to wait for git process")?;
 
         // Exit codes >= 128 are fatal errors (e.g., invalid revision, bad range).
         // Exit code 1 is benign for diff commands (means differences found).
-        let code = status.code().unwrap_or(-1);
-        if !(0..128).contains(&code) {
+        let code_opt = status.code();
+        let code = code_opt.unwrap_or(-1);
+        let intentionally_terminated = killed_for_truncation && code_opt.is_none();
+        if !(0..128).contains(&code) && !intentionally_terminated {
             bail!("git command failed (exit {})", code);
         }
 

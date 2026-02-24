@@ -370,6 +370,7 @@ dependencies = [
  "insta",
  "notify",
  "notify-debouncer-mini",
+ "percent-encoding",
  "predicates",
  "ratatui",
  "regex",

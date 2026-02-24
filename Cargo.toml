@@ -52,6 +52,7 @@ dirs = "6"
 
 # URL parsing (for WezTerm cwd)
 url = "2"
+percent-encoding = "2"
 
 # Regex (for parsing)
 regex = "1"

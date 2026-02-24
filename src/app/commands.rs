@@ -22,8 +22,8 @@ pub enum Command {
     CopyHunk,
     CopyFileDiff,
     ExportToFile(String),
-    SwitchWorktree(String),
-    SwitchContext(String),
+    SwitchWorktree(PathBuf),
+    SwitchContext(PathBuf),
     OpenContextSelector,
 }
 
@@ -272,21 +272,20 @@ fn switch_to_path(
     state: &mut AppState,
     git: &Arc<GitCli>,
     tx: &Sender<InternalEvent>,
-    path_str: &str,
+    path: &Path,
     source: ContextSource,
 ) {
-    // path_str is the raw path from selector data (not a formatted label)
-    let path = PathBuf::from(path_str);
+    // `path` is the raw path from selector data (not a formatted label)
 
     if !path.exists() {
         state.toast = Some(Toast::new(
-            format!("Path does not exist: {}", path_str),
+            format!("Path does not exist: {}", path.display()),
             Duration::from_secs(3),
         ));
         return;
     }
 
-    resolve_and_switch(state, git, tx, &path, source);
+    resolve_and_switch(state, git, tx, path, source);
 }
 
 fn resolve_and_switch(
@@ -411,13 +410,13 @@ fn resolve_and_switch(
 /// and when a PanesDiscovered event arrives while the selector is open.
 pub fn rebuild_context_selector(state: &mut AppState) {
     let mut items: Vec<String> = Vec::new();
-    let mut paths: Vec<String> = Vec::new();
+    let mut paths: Vec<PathBuf> = Vec::new();
     let mut seen_paths: Vec<PathBuf> = Vec::new();
 
     // Current
     if let Some(ref ctx) = state.context {
         items.push(format!("{} [current]", ctx));
-        paths.push(ctx.worktree_path.display().to_string());
+        paths.push(ctx.worktree_path.clone());
         seen_paths.push(ctx.worktree_path.clone());
     }
 
@@ -425,7 +424,7 @@ pub fn rebuild_context_selector(state: &mut AppState) {
     for wt in &state.worktrees_cache {
         if !seen_paths.contains(&wt.path) {
             items.push(format!("{} [worktree]", wt));
-            paths.push(wt.path.display().to_string());
+            paths.push(wt.path.clone());
             seen_paths.push(wt.path.clone());
         }
     }
@@ -439,7 +438,7 @@ pub fn rebuild_context_selector(state: &mut AppState) {
                 format!("{} [recent]", rc.path.display())
             };
             items.push(label);
-            paths.push(rc.path.display().to_string());
+            paths.push(rc.path.clone());
             seen_paths.push(rc.path.clone());
         }
     }
@@ -448,7 +447,7 @@ pub fn rebuild_context_selector(state: &mut AppState) {
     for pc in &state.pane_candidates {
         if !seen_paths.contains(&pc.repo_root) {
             items.push(format!("{} [{}]", pc.repo_root.display(), pc.label));
-            paths.push(pc.repo_root.display().to_string());
+            paths.push(pc.repo_root.clone());
             seen_paths.push(pc.repo_root.clone());
         }
     }
