@@ -201,12 +201,12 @@ pub fn handle_input(state: &mut AppState, event: InputEvent) -> Option<Command> 
                         ));
                         return None;
                     }
-                    // Switch to Compare mode, using persisted base or discovered default
+                    // Switch to Compare mode: prefer the discovered default base
+                    // (validated against this repo) over the global persisted base.
                     let base = state
-                        .persistent
-                        .last_base
+                        .default_base
                         .clone()
-                        .or_else(|| state.default_base.clone())
+                        .or_else(|| state.persistent.last_base.clone())
                         .unwrap_or_else(|| "main".to_string());
                     state.diff_spec = DiffSpec::Compare { base, target: None };
                 }
@@ -527,11 +527,11 @@ pub fn handle_internal_event(state: &mut AppState, event: InternalEvent) {
             match state.persistent.last_mode.as_deref() {
                 Some("compare") => {
                     if !state.context.as_ref().is_some_and(|c| c.is_unborn) {
-                        let base = state
-                            .persistent
-                            .last_base
-                            .clone()
-                            .or(default_base)
+                        // Prefer the discovered default base (which is validated
+                        // against the current repo's refs) over the persisted
+                        // last_base, which is global and may not exist here.
+                        let base = default_base
+                            .or_else(|| state.persistent.last_base.clone())
                             .unwrap_or_else(|| "main".to_string());
                         state.diff_spec = DiffSpec::Compare { base, target: None };
                     }

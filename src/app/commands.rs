@@ -126,13 +126,14 @@ fn load_diff(state: &mut AppState, git: &Arc<GitCli>, tx: &Sender<InternalEvent>
     let ctx = state.context.as_ref().unwrap().clone();
     let spec = state.diff_spec.clone();
     let file_path = state.files[idx].path.clone();
+    let old_path = state.files[idx].old_path.clone();
     let git = git.clone();
     let tx = tx.clone();
     let gen = state.generation;
     let ctx_lines = state.config.unified_context;
 
     std::thread::spawn(move || {
-        match git.file_diff(&ctx.worktree_path, &spec, &file_path, ctx_lines) {
+        match git.file_diff(&ctx.worktree_path, &spec, &file_path, old_path.as_deref(), ctx_lines) {
             Ok(diff) => {
                 let _ = tx.send(InternalEvent::GitDiffUpdated {
                     generation: gen,

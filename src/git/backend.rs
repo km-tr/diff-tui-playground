@@ -29,12 +29,15 @@ pub trait GitBackend: Send {
     /// Get the list of changed files for a given diff spec
     fn changed_files(&self, repo: &Path, spec: &DiffSpec) -> Result<Vec<FileEntry>>;
 
-    /// Get the full diff for a specific file
+    /// Get the full diff for a specific file.
+    /// For renamed/copied files, pass the old path so git can produce
+    /// proper rename/copy metadata instead of an add+delete pair.
     fn file_diff(
         &self,
         repo: &Path,
         spec: &DiffSpec,
         file_path: &str,
+        old_path: Option<&str>,
         context_lines: u32,
     ) -> Result<FileDiff>;
 

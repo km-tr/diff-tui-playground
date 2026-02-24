@@ -206,6 +206,7 @@ impl GitBackend for GitCli {
         repo: &Path,
         spec: &DiffSpec,
         file_path: &str,
+        old_path: Option<&str>,
         context_lines: u32,
     ) -> Result<FileDiff> {
         let mut args = Self::diff_args(spec);
@@ -213,6 +214,11 @@ impl GitBackend for GitCli {
         args.push(format!("--unified={}", context_lines));
         args.push("--no-ext-diff".to_string());
         args.push("--".to_string());
+        // For renames/copies, pass both old and new paths so git emits
+        // proper rename/copy metadata instead of an add+delete pair.
+        if let Some(old) = old_path {
+            args.push(old.to_string());
+        }
         args.push(file_path.to_string());
 
         let mut cmd = Self::git_cmd(repo);

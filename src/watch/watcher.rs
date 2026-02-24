@@ -21,7 +21,9 @@ impl FileWatcher {
             {
                 Ok(events) => {
                     debug!("Watch triggered: {} events", events.len());
-                    let _ = tx.send(InternalEvent::WatchTriggered);
+                    if let Err(err) = tx.try_send(InternalEvent::WatchTriggered) {
+                        debug!("Watch event dropped: {}", err);
+                    }
                 }
                 Err(e) => {
                     error!("Watch error: {:?}", e);
