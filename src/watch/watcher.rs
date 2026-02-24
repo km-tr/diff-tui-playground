@@ -14,7 +14,7 @@ pub struct FileWatcher {
 }
 
 impl FileWatcher {
-    pub fn new(path: &Path, debounce: Duration, tx: Sender<InternalEvent>) -> Result<Self> {
+    pub fn new(paths: &[&Path], debounce: Duration, tx: Sender<InternalEvent>) -> Result<Self> {
         let mut debouncer = new_debouncer(
             debounce,
             move |res: Result<Vec<notify_debouncer_mini::DebouncedEvent>, notify::Error>| match res
@@ -32,10 +32,12 @@ impl FileWatcher {
         )
         .context("Failed to create file watcher")?;
 
-        debouncer
-            .watcher()
-            .watch(path, RecursiveMode::Recursive)
-            .context("Failed to watch path")?;
+        for path in paths {
+            debouncer
+                .watcher()
+                .watch(path, RecursiveMode::Recursive)
+                .with_context(|| format!("Failed to watch path: {}", path.display()))?;
+        }
 
         Ok(Self {
             _debouncer: debouncer,

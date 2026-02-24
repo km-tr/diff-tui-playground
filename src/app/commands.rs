@@ -295,9 +295,9 @@ fn resolve_and_switch(
             // Derive the true repository root from the git common directory.
             // For linked worktrees, --show-toplevel returns the worktree path
             // while --git-common-dir points to the main repo's .git directory.
-            let repo_root = git
-                .git_common_dir(&worktree_root)
-                .ok()
+            let git_common = git.git_common_dir(&worktree_root).ok();
+            let repo_root = git_common
+                .as_ref()
                 .and_then(|common| common.parent().map(|p| p.to_path_buf()))
                 .unwrap_or_else(|| worktree_root.clone());
 
@@ -339,7 +339,7 @@ fn resolve_and_switch(
             let ctx = GitContext {
                 repo_root,
                 worktree_path: worktree_root.clone(),
-                git_dir: None,
+                git_dir: git_common,
                 current_branch: branch.clone(),
                 head_ref: head,
                 is_detached: detached,
@@ -372,6 +372,13 @@ fn resolve_and_switch(
             if let Err(e) = state.persistent.save() {
                 tracing::warn!("Failed to save persistent state: {}", e);
             }
+
+            // Clear stale data from previous context before async reload
+            state.files.clear();
+            state.current_diff = None;
+            state.file_selected = 0;
+            state.diff_scroll = 0;
+            state.current_hunk = 0;
 
             state.toast = Some(Toast::new(
                 format!("Switched to {}", path.display()),

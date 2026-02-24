@@ -407,7 +407,10 @@ pub fn handle_input(state: &mut AppState, event: InputEvent) -> Option<Command> 
             // Default filename based on current file
             let default_name = if let Some(idx) = state.actual_selected_file_index() {
                 let file_path = &state.files[idx].path;
-                let sanitized = file_path.replace('/', "_");
+                let sanitized: String = file_path
+                    .chars()
+                    .map(|c| if c == '/' || c == '\\' { '_' } else { c })
+                    .collect();
                 format!("{}.patch", sanitized)
             } else {
                 "diff.patch".to_string()

@@ -439,9 +439,9 @@ impl App {
                 // Derive the true repository root from the git common directory.
                 // For linked worktrees, --show-toplevel returns the worktree path
                 // while --git-common-dir points to the main repo's .git directory.
-                let repo_root = git
-                    .git_common_dir(&worktree_root)
-                    .ok()
+                let git_common = git.git_common_dir(&worktree_root).ok();
+                let repo_root = git_common
+                    .as_ref()
                     .and_then(|common| common.parent().map(|p| p.to_path_buf()))
                     .unwrap_or_else(|| worktree_root.clone());
 
@@ -472,7 +472,7 @@ impl App {
                 let ctx = GitContext {
                     repo_root,
                     worktree_path: worktree_root,
-                    git_dir: None,
+                    git_dir: git_common,
                     current_branch: branch,
                     head_ref: head,
                     is_detached: detached,
@@ -499,9 +499,18 @@ impl App {
         let tx = self.internal_tx.clone();
         let debounce = Duration::from_millis(self.state.config.watch.debounce_ms);
 
-        match FileWatcher::new(&ctx.worktree_path, debounce, tx) {
+        // Watch the worktree path and, for linked worktrees, the git
+        // common directory (which holds shared refs, config, etc.).
+        let mut paths: Vec<&std::path::Path> = vec![&ctx.worktree_path];
+        if let Some(ref git_dir) = ctx.git_dir {
+            if *git_dir != ctx.worktree_path {
+                paths.push(git_dir.as_path());
+            }
+        }
+
+        match FileWatcher::new(&paths, debounce, tx) {
             Ok(w) => {
-                info!("File watcher started");
+                info!("File watcher started for {} path(s)", paths.len());
                 Some(w)
             }
             Err(e) => {

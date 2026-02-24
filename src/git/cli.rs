@@ -248,6 +248,25 @@ impl GitBackend for GitCli {
         let numstat_output = Self::run_allow_empty(&mut cmd2)?;
         name_status::merge_numstat(&mut entries, &numstat_output);
 
+        // In Worktree Unstaged mode, also list untracked files so the user
+        // can see new files that haven't been staged yet.
+        if matches!(spec, DiffSpec::Worktree(WorktreeMode::Unstaged)) {
+            let mut cmd3 = Self::git_cmd(repo);
+            cmd3.args(["ls-files", "--others", "--exclude-standard", "-z"]);
+            let untracked_output = Self::run_allow_empty(&mut cmd3)?;
+            for path in untracked_output.split('\0') {
+                if !path.is_empty() {
+                    entries.push(FileEntry {
+                        path: path.to_string(),
+                        old_path: None,
+                        status: FileStatus::Untracked,
+                        additions: 0,
+                        deletions: 0,
+                    });
+                }
+            }
+        }
+
         Ok(entries)
     }
 
