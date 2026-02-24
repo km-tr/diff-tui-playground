@@ -72,7 +72,10 @@ pub fn draw_selector(f: &mut Frame, area: Rect, sel: &SelectorState, title: &str
             } else {
                 Style::default().fg(Color::White)
             };
-            Some(ListItem::new(Line::from(Span::styled(item.as_str(), style))))
+            Some(ListItem::new(Line::from(Span::styled(
+                item.as_str(),
+                style,
+            ))))
         })
         .collect();
 

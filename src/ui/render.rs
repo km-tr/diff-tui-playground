@@ -207,8 +207,8 @@ fn draw_search_bar(f: &mut Frame, area: Rect, state: &AppState) {
     f.render_widget(para, rect);
 
     // Place cursor at the end of the query text, inside the border
-    let cursor_x = (rect.x + 1 + state.search.query.len() as u16)
-        .min(rect.x + rect.width.saturating_sub(2));
+    let cursor_x =
+        (rect.x + 1 + state.search.query.len() as u16).min(rect.x + rect.width.saturating_sub(2));
     f.set_cursor_position(Position::new(cursor_x, rect.y + 1));
 }
 
@@ -237,8 +237,8 @@ fn draw_file_filter_bar(f: &mut Frame, area: Rect, state: &mut AppState) {
     f.render_widget(ratatui::widgets::Clear, rect);
     f.render_widget(para, rect);
 
-    let cursor_x = (rect.x + 1 + state.file_filter.len() as u16)
-        .min(rect.x + rect.width.saturating_sub(2));
+    let cursor_x =
+        (rect.x + 1 + state.file_filter.len() as u16).min(rect.x + rect.width.saturating_sub(2));
     f.set_cursor_position(Position::new(cursor_x, rect.y + 1));
 }
 
