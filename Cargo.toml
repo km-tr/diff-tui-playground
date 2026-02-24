@@ -38,7 +38,7 @@ tracing-appender = "0.2"
 notify = "7"
 notify-debouncer-mini = "0.5"
 
-# Async channels
+# Channels
 crossbeam-channel = "0.5"
 
 # Clipboard

@@ -46,7 +46,7 @@ diffdon -C /path/to/repo
 diffdon --config path/to/config.toml
 
 # Enable debug logging
-RUST_LOG=debug diffdon --log-file /tmp/grt.log
+RUST_LOG=debug diffdon --log-file /tmp/diffdon.log
 ```
 
 ## Key Bindings
@@ -187,7 +187,7 @@ State is saved to `~/.local/share/diffdon/state.json`:
 
 **tmux not found**: Set `discovery = "off"` or `discovery = "wezterm"` in config to skip tmux detection.
 
-**Large diff is slow**: The viewer truncates diffs beyond `truncate_max_lines`. Use `o` to export the full diff to a file.
+**Large diff is slow**: The viewer truncates diffs beyond `truncate_max_lines` lines or `truncate_max_bytes` bytes (whichever is hit first). Raise either limit in the config, or use `o` to export the full diff to a file.
 
 **Logging for debugging**: Set `RUST_LOG=debug` and optionally `--log-file /tmp/grt.log`.
 

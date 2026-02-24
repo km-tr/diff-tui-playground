@@ -2,7 +2,9 @@
 
 ## Development Setup
 
-1. Install Rust (stable): https://rustup.rs/
+Prerequisites: `git` must be installed and available on your PATH.
+
+1. Install Rust (stable, >= 1.80.0): https://rustup.rs/
 2. Clone the repository
 3. Run `cargo build` to verify everything compiles
 
@@ -10,7 +12,7 @@
 
 ```sh
 cargo fmt        # Format code
-cargo clippy --all-targets   # Lint (must be warning-free)
+cargo clippy --all-targets -- -D warnings   # Lint (must be warning-free)
 cargo test       # Run all tests
 ```
 
