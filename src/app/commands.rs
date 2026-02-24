@@ -131,6 +131,7 @@ fn load_diff(state: &mut AppState, git: &Arc<GitCli>, tx: &Sender<InternalEvent>
     let spec = state.diff_spec.clone();
     let file_path = state.files[idx].path.clone();
     let old_path = state.files[idx].old_path.clone();
+    let is_untracked = state.files[idx].status == FileStatus::Untracked;
     let git = git.clone();
     let tx = tx.clone();
     let gen = state.generation;
@@ -143,6 +144,7 @@ fn load_diff(state: &mut AppState, git: &Arc<GitCli>, tx: &Sender<InternalEvent>
             &file_path,
             old_path.as_deref(),
             ctx_lines,
+            is_untracked,
         ) {
             Ok(diff) => {
                 let _ = tx.send(InternalEvent::GitDiffUpdated {

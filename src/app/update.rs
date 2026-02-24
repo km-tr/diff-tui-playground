@@ -500,7 +500,7 @@ pub fn handle_internal_event(state: &mut AppState, event: InternalEvent) {
                     return;
                 }
                 Some(idx) => {
-                    if idx < state.files.len() && state.files[idx].path != file_path {
+                    if idx >= state.files.len() || state.files[idx].path != file_path {
                         debug!("Ignoring diff for deselected file: {}", file_path);
                         return;
                     }

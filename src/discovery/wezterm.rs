@@ -12,17 +12,12 @@ pub struct WeztermProvider;
 
 #[derive(Debug, Deserialize)]
 struct WeztermPane {
-    #[serde(default)]
     pane_id: u64,
     #[serde(default)]
     workspace: String,
     #[serde(default)]
     cwd: String,
-    #[serde(default)]
-    title: String,
-    #[serde(default)]
     tab_id: u64,
-    #[serde(default)]
     window_id: u64,
 }
 
@@ -38,7 +33,8 @@ impl PaneProvider for WeztermProvider {
             anyhow::bail!("wezterm cli list failed: {}", stderr.trim());
         }
 
-        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stdout = String::from_utf8(output.stdout.clone())
+            .unwrap_or_else(|_| String::from_utf8_lossy(&output.stdout).into_owned());
         let panes = parse_wezterm_output(&stdout)?;
         debug!("wezterm: found {} panes", panes.len());
         Ok(panes)
@@ -83,10 +79,22 @@ fn parse_wezterm_output(json: &str) -> Result<Vec<PaneInfo>> {
 
 /// Parse a cwd URL like `file:///home/user/project` to a local path.
 /// Returns None for non-local URLs (e.g., ssh://).
+///
+/// WezTerm emits `file://hostname/path` (with the machine's actual hostname),
+/// not `file:///path`. The `url` crate's `to_file_path()` rejects non-empty
+/// hosts other than "localhost", so we fall back to extracting the path
+/// component directly.
 fn parse_cwd_url(cwd: &str) -> Option<PathBuf> {
     if let Ok(url) = Url::parse(cwd) {
         if url.scheme() == "file" {
-            url.to_file_path().ok()
+            url.to_file_path().ok().or_else(|| {
+                let path = url.path();
+                if path.is_empty() {
+                    None
+                } else {
+                    Some(PathBuf::from(path))
+                }
+            })
         } else {
             None // non-local
         }
@@ -141,6 +149,13 @@ mod tests {
         let panes = parse_wezterm_output(json).unwrap();
         assert_eq!(panes.len(), 1); // ssh pane is skipped
         assert_eq!(panes[0].cwd, PathBuf::from("/home/user/project"));
+    }
+
+    #[test]
+    fn test_parse_cwd_url_file_with_hostname() {
+        // wezterm actually emits file://hostname/path, not file:///path
+        let path = parse_cwd_url("file://mymachine/home/user/project");
+        assert_eq!(path, Some(PathBuf::from("/home/user/project")));
     }
 
     #[test]

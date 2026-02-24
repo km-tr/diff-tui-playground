@@ -73,7 +73,9 @@ pub fn draw_diff_view(f: &mut Frame, area: Rect, state: &AppState, focused: bool
             let lines = build_diff_lines(diff, state);
 
             // If there are no hunk lines but we have metadata, show it
-            if lines.is_empty() && !diff.extended_headers.is_empty() {
+            if lines.is_empty()
+                && (!diff.extended_headers.is_empty() || !diff.file_header.is_empty())
+            {
                 let meta_lines = build_metadata_lines(diff);
                 let visible: Vec<Line> = meta_lines
                     .into_iter()

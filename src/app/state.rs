@@ -89,7 +89,7 @@ impl SelectorState {
     }
 
     pub fn with_data(items: Vec<String>, data: Vec<String>) -> Self {
-        debug_assert_eq!(
+        assert_eq!(
             items.len(),
             data.len(),
             "SelectorState: items and data must have the same length"
@@ -503,7 +503,7 @@ impl App {
         // common directory (which holds shared refs, config, etc.).
         let mut paths: Vec<&std::path::Path> = vec![&ctx.worktree_path];
         if let Some(ref git_dir) = ctx.git_dir {
-            if *git_dir != ctx.worktree_path {
+            if !git_dir.starts_with(&ctx.worktree_path) {
                 paths.push(git_dir.as_path());
             }
         }
@@ -527,7 +527,10 @@ impl App {
         };
         let wt_mode = match &self.state.diff_spec {
             DiffSpec::Worktree(m) => *m,
-            _ => WorktreeMode::Unstaged,
+            _ => match self.state.persistent.last_worktree_mode.as_deref() {
+                Some("staged") => WorktreeMode::Staged,
+                _ => WorktreeMode::Unstaged,
+            },
         };
         let base = match &self.state.diff_spec {
             DiffSpec::Compare { base, .. } => Some(base.as_str()),

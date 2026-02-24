@@ -150,7 +150,7 @@ pub fn merge_numstat(entries: &mut [FileEntry], numstat_output: &str) {
                         return true;
                     }
                     if let Some(ref op) = e.old_path {
-                        if *op == *old || *op == *new {
+                        if *op == *old {
                             return true;
                         }
                     }
