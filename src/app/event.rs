@@ -1,0 +1,86 @@
+use crate::discovery::PaneCandidate;
+use crate::git::model::{FileDiff, FileEntry, GitContext, RefEntry, WorktreeEntry};
+
+/// Events from user input
+#[derive(Debug)]
+pub enum InputEvent {
+    MoveDown,
+    MoveUp,
+    GoTop,
+    GoBottom,
+    PageUp,
+    PageDown,
+    SwitchFocus,
+    NextHunk,
+    PrevHunk,
+    SearchInDiff,
+    ToggleMode,
+    ToggleStagedUnstaged,
+    OpenBaseSelector,
+    OpenTargetSelector,
+    OpenWorktreeSelector,
+    OpenContextSelector,
+    OpenFileFilter,
+    CopyHunk,
+    CopyFileDiff,
+    Export,
+    Reload,
+    Help,
+    Quit,
+    // Selector interactions
+    SelectorInput(char),
+    SelectorBackspace,
+    SelectorConfirm,
+    SelectorCancel,
+    SelectorMoveDown,
+    SelectorMoveUp,
+    // Search interactions
+    SearchInput(char),
+    SearchBackspace,
+    SearchConfirm,
+    SearchCancel,
+    SearchNext,
+    SearchPrev,
+    // File filter interactions
+    FileFilterInput(char),
+    FileFilterBackspace,
+    FileFilterConfirm,
+    FileFilterCancel,
+    // Export interactions
+    ExportInput(char),
+    ExportBackspace,
+    ExportConfirm,
+    ExportCancel,
+}
+
+/// Events from internal/async operations
+#[derive(Debug)]
+pub enum InternalEvent {
+    GitFilesUpdated {
+        generation: u64,
+        files: Vec<FileEntry>,
+    },
+    GitDiffUpdated {
+        generation: u64,
+        file_path: String,
+        diff: FileDiff,
+    },
+    GitRefsLoaded {
+        generation: u64,
+        refs: Vec<RefEntry>,
+    },
+    GitWorktreesLoaded {
+        generation: u64,
+        worktrees: Vec<WorktreeEntry>,
+    },
+    ContextResolved {
+        context: GitContext,
+        default_base: Option<String>,
+    },
+    PanesDiscovered {
+        panes: Vec<PaneCandidate>,
+    },
+    WatchTriggered,
+    Error(String),
+    Toast(String),
+}
