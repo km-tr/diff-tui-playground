@@ -7,8 +7,8 @@ use ratatui::Frame;
 pub fn draw_help(f: &mut Frame, area: Rect) {
     let width = area.width.min(65);
     let height = area.height.min(34);
-    let x = (area.width.saturating_sub(width)) / 2;
-    let y = (area.height.saturating_sub(height)) / 2;
+    let x = area.x + (area.width.saturating_sub(width)) / 2;
+    let y = area.y + (area.height.saturating_sub(height)) / 2;
     let rect = Rect::new(x, y, width, height);
 
     f.render_widget(Clear, rect);

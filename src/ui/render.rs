@@ -1,4 +1,4 @@
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::layout::{Constraint, Direction, Layout, Position, Rect};
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
@@ -42,7 +42,7 @@ pub fn draw(f: &mut Frame, state: &mut AppState) {
                     Overlay::TargetSelector => "Select Target Ref",
                     Overlay::WorktreeSelector => "Select Worktree",
                     Overlay::ContextSelector => "Select Context",
-                    _ => "Select",
+                    _ => unreachable!(),
                 };
                 selector::draw_selector(f, size, sel, title);
             }
@@ -66,9 +66,9 @@ pub fn draw(f: &mut Frame, state: &mut AppState) {
         }
     }
 
-    // Error panel
+    // Error panel (only when no overlay is active)
     if let Some(ref err) = state.last_error {
-        if state.context.is_none() {
+        if state.context.is_none() && state.overlay == Overlay::None {
             error_panel::draw_error(f, main_chunks[1], err);
         }
     }
@@ -175,8 +175,8 @@ fn draw_footer(f: &mut Frame, area: Rect, state: &AppState) {
 
 fn draw_search_bar(f: &mut Frame, area: Rect, state: &AppState) {
     let width = area.width.min(60);
-    let x = (area.width.saturating_sub(width)) / 2;
-    let y = area.height.saturating_sub(4);
+    let x = area.x + (area.width.saturating_sub(width)) / 2;
+    let y = area.y + area.height.saturating_sub(4);
     let rect = Rect::new(x, y, width, 3);
 
     let match_info = if state.search.matches.is_empty() {
@@ -205,12 +205,17 @@ fn draw_search_bar(f: &mut Frame, area: Rect, state: &AppState) {
     // Clear area
     f.render_widget(ratatui::widgets::Clear, rect);
     f.render_widget(para, rect);
+
+    // Place cursor at the end of the query text, inside the border
+    let cursor_x = (rect.x + 1 + state.search.query.len() as u16)
+        .min(rect.x + rect.width.saturating_sub(2));
+    f.set_cursor_position(Position::new(cursor_x, rect.y + 1));
 }
 
 fn draw_file_filter_bar(f: &mut Frame, area: Rect, state: &mut AppState) {
     let width = area.width.min(60);
-    let x = (area.width.saturating_sub(width)) / 2;
-    let y = area.height.saturating_sub(4);
+    let x = area.x + (area.width.saturating_sub(width)) / 2;
+    let y = area.y + area.height.saturating_sub(4);
     let rect = Rect::new(x, y, width, 3);
 
     let count = state.filtered_file_indices().len();
@@ -231,13 +236,17 @@ fn draw_file_filter_bar(f: &mut Frame, area: Rect, state: &mut AppState) {
 
     f.render_widget(ratatui::widgets::Clear, rect);
     f.render_widget(para, rect);
+
+    let cursor_x = (rect.x + 1 + state.file_filter.len() as u16)
+        .min(rect.x + rect.width.saturating_sub(2));
+    f.set_cursor_position(Position::new(cursor_x, rect.y + 1));
 }
 
 fn draw_export_dialog(f: &mut Frame, area: Rect, state: &AppState) {
     let width = area.width.min(60);
     let height = 5;
-    let x = (area.width.saturating_sub(width)) / 2;
-    let y = (area.height.saturating_sub(height)) / 2;
+    let x = area.x + (area.width.saturating_sub(width)) / 2;
+    let y = area.y + (area.height.saturating_sub(height)) / 2;
     let rect = Rect::new(x, y, width, height);
 
     let block = Block::default()
@@ -259,4 +268,9 @@ fn draw_export_dialog(f: &mut Frame, area: Rect, state: &AppState) {
 
     f.render_widget(ratatui::widgets::Clear, rect);
     f.render_widget(para, rect);
+
+    // Cursor on the path input line (second line inside border)
+    let cursor_x = (rect.x + 1 + state.export.path_input.len() as u16)
+        .min(rect.x + rect.width.saturating_sub(2));
+    f.set_cursor_position(Position::new(cursor_x, rect.y + 2));
 }

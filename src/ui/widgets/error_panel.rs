@@ -1,7 +1,7 @@
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 use ratatui::Frame;
 
 pub fn draw_error(f: &mut Frame, area: Rect, message: &str) {
@@ -25,7 +25,8 @@ pub fn draw_error(f: &mut Frame, area: Rect, message: &str) {
 
     let para = Paragraph::new(lines)
         .block(block)
-        .alignment(Alignment::Center);
+        .alignment(Alignment::Center)
+        .wrap(Wrap { trim: true });
 
     f.render_widget(para, area);
 }

@@ -8,10 +8,10 @@ use crate::app::state::SelectorState;
 
 pub fn draw_selector(f: &mut Frame, area: Rect, sel: &SelectorState, title: &str) {
     // Center the selector
-    let width = area.width.min(70).max(area.width.min(30));
-    let height = area.height.min(20).max(area.height.min(5));
-    let x = (area.width.saturating_sub(width)) / 2;
-    let y = (area.height.saturating_sub(height)) / 2;
+    let width = area.width.clamp(30, 70);
+    let height = area.height.clamp(5, 20);
+    let x = area.x + (area.width.saturating_sub(width)) / 2;
+    let y = area.y + (area.height.saturating_sub(height)) / 2;
     let rect = Rect::new(x, y, width, height);
 
     // Clear background
@@ -62,8 +62,8 @@ pub fn draw_selector(f: &mut Frame, area: Rect, sel: &SelectorState, title: &str
         .enumerate()
         .skip(scroll)
         .take(visible_height)
-        .map(|(i, &idx)| {
-            let item = &sel.items[idx];
+        .filter_map(|(i, &idx)| {
+            let item = sel.items.get(idx)?;
             let style = if i == sel.selected {
                 Style::default()
                     .fg(Color::White)
@@ -72,7 +72,7 @@ pub fn draw_selector(f: &mut Frame, area: Rect, sel: &SelectorState, title: &str
             } else {
                 Style::default().fg(Color::White)
             };
-            ListItem::new(Line::from(Span::styled(item.as_str(), style)))
+            Some(ListItem::new(Line::from(Span::styled(item.as_str(), style))))
         })
         .collect();
 
