@@ -82,11 +82,11 @@ impl GitCli {
         debug!("Running (limited to {} bytes): {:?}", limit, cmd);
         let mut child = cmd
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            .stderr(Stdio::piped())
             .spawn()
             .context("Failed to execute git command")?;
 
-        let mut buf = vec![0u8; limit + 1];
+        let mut buf = vec![0u8; limit.saturating_add(1)];
         let stdout = child.stdout.take().unwrap();
         let mut reader = std::io::BufReader::new(stdout);
         let mut total = 0;
@@ -110,14 +110,25 @@ impl GitCli {
         if was_truncated {
             let _ = child.kill();
         }
-        let _ = child.wait();
+        let status = child.wait().context("Failed to wait for git process")?;
 
-        // Find a valid UTF-8 boundary
-        let mut end = keep;
-        while end > 0 && std::str::from_utf8(&buf[..end]).is_err() {
-            end -= 1;
+        // Exit codes >= 128 are fatal errors (e.g., invalid revision, bad range).
+        // Exit code 1 is benign for diff commands (means differences found).
+        let code = status.code().unwrap_or(-1);
+        if !(0..128).contains(&code) {
+            bail!("git command failed (exit {})", code);
         }
-        let output = String::from_utf8_lossy(&buf[..end]).into_owned();
+
+        // Find a valid UTF-8 boundary in O(n) using valid_up_to()
+        let output = match std::str::from_utf8(&buf[..keep]) {
+            Ok(s) => s.to_owned(),
+            Err(e) => {
+                let valid_end = e.valid_up_to();
+                // valid_up_to guarantees buf[..valid_end] is valid UTF-8
+                String::from_utf8(buf[..valid_end].to_vec())
+                    .expect("valid_up_to guarantees valid UTF-8")
+            }
+        };
         Ok((output, was_truncated))
     }
 
@@ -278,21 +289,39 @@ impl GitBackend for GitCli {
         file_path: &str,
         old_path: Option<&str>,
         context_lines: u32,
+        is_untracked: bool,
     ) -> Result<FileDiff> {
-        let mut args = Self::diff_args(spec);
-        args.push("--patch".to_string());
-        args.push(format!("--unified={}", context_lines));
-        args.push("--no-ext-diff".to_string());
-        args.push("--".to_string());
-        // For renames/copies, pass both old and new paths so git emits
-        // proper rename/copy metadata instead of an add+delete pair.
-        if let Some(old) = old_path {
-            args.push(old.to_string());
-        }
-        args.push(file_path.to_string());
+        // Untracked files need --no-index to diff against /dev/null
+        let mut cmd = if is_untracked {
+            let mut c = Self::git_cmd(repo);
+            c.args([
+                "diff",
+                "--no-index",
+                "--patch",
+                &format!("--unified={}", context_lines),
+                "--no-ext-diff",
+                "--",
+                "/dev/null",
+                file_path,
+            ]);
+            c
+        } else {
+            let mut args = Self::diff_args(spec);
+            args.push("--patch".to_string());
+            args.push(format!("--unified={}", context_lines));
+            args.push("--no-ext-diff".to_string());
+            args.push("--".to_string());
+            // For renames/copies, pass both old and new paths so git emits
+            // proper rename/copy metadata instead of an add+delete pair.
+            if let Some(old) = old_path {
+                args.push(old.to_string());
+            }
+            args.push(file_path.to_string());
 
-        let mut cmd = Self::git_cmd(repo);
-        cmd.args(&args);
+            let mut c = Self::git_cmd(repo);
+            c.args(&args);
+            c
+        };
 
         // Stream stdout up to max_bytes to avoid buffering huge diffs into memory.
         let (output, was_truncated) = if self.max_bytes > 0 {

@@ -23,12 +23,14 @@ pub fn discover_panes(mode: &DiscoveryMode) -> Vec<PaneCandidate> {
             Err(e) => warn!("wezterm discovery failed: {}", e),
         },
         DiscoveryMode::Auto => {
-            // Try tmux first, then wezterm
-            if let Ok(panes) = tmux::TmuxProvider.list_panes() {
-                all_panes.extend(panes);
+            // Aggregate panes from all available providers
+            match tmux::TmuxProvider.list_panes() {
+                Ok(panes) => all_panes.extend(panes),
+                Err(e) => debug!("tmux discovery unavailable in Auto mode: {}", e),
             }
-            if let Ok(panes) = wezterm::WeztermProvider.list_panes() {
-                all_panes.extend(panes);
+            match wezterm::WeztermProvider.list_panes() {
+                Ok(panes) => all_panes.extend(panes),
+                Err(e) => debug!("wezterm discovery unavailable in Auto mode: {}", e),
             }
         }
     }

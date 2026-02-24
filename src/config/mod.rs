@@ -52,7 +52,7 @@ impl AppConfig {
                 match Self::load_from(&path) {
                     Ok(c) => return c,
                     Err(e) => {
-                        tracing::warn!("Failed to load config from {:?}: {}", path, e);
+                        eprintln!("warning: failed to load config from {path:?}: {e}");
                     }
                 }
             }

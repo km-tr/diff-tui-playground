@@ -137,7 +137,7 @@ impl FileStatus {
             FileStatus::Renamed => "Renamed",
             FileStatus::Copied => "Copied",
             FileStatus::Untracked => "Untracked",
-            FileStatus::TypeChanged => "TypeChanged",
+            FileStatus::TypeChanged => "Type Changed",
             FileStatus::Unmerged => "Unmerged",
             FileStatus::Unknown => "Unknown",
         }

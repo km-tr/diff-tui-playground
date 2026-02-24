@@ -8,10 +8,11 @@ pub fn normalize_path(path: &Path) -> PathBuf {
             // Fallback: just make it absolute
             if path.is_absolute() {
                 path.to_path_buf()
+            } else if let Ok(cwd) = std::env::current_dir() {
+                cwd.join(path)
             } else {
-                std::env::current_dir()
-                    .unwrap_or_else(|_| PathBuf::from("."))
-                    .join(path)
+                // Cannot determine an absolute path; return as-is
+                path.to_path_buf()
             }
         }
     }

@@ -32,6 +32,8 @@ pub trait GitBackend: Send {
     /// Get the full diff for a specific file.
     /// For renamed/copied files, pass the old path so git can produce
     /// proper rename/copy metadata instead of an add+delete pair.
+    /// When `is_untracked` is true, uses `--no-index` to diff against
+    /// /dev/null so that new untracked files show their full content.
     fn file_diff(
         &self,
         repo: &Path,
@@ -39,6 +41,7 @@ pub trait GitBackend: Send {
         file_path: &str,
         old_path: Option<&str>,
         context_lines: u32,
+        is_untracked: bool,
     ) -> Result<FileDiff>;
 
     /// Get the list of refs (branches + tags) for the selector

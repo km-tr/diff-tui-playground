@@ -24,17 +24,16 @@ impl PersistentState {
     pub fn load() -> Self {
         let path = Self::state_path();
         if let Some(path) = path {
-            if path.exists() {
-                match std::fs::read_to_string(&path) {
-                    Ok(content) => match serde_json::from_str(&content) {
-                        Ok(state) => return state,
-                        Err(e) => {
-                            tracing::warn!("Failed to parse persistent state: {}", e);
-                        }
-                    },
+            match std::fs::read_to_string(&path) {
+                Ok(content) => match serde_json::from_str(&content) {
+                    Ok(state) => return state,
                     Err(e) => {
-                        tracing::warn!("Failed to read persistent state: {}", e);
+                        tracing::warn!("Failed to parse persistent state: {}", e);
                     }
+                },
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => {
+                    tracing::warn!("Failed to read persistent state: {}", e);
                 }
             }
         }
