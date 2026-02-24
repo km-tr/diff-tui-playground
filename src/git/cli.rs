@@ -82,7 +82,7 @@ impl GitCli {
         debug!("Running (limited to {} bytes): {:?}", limit, cmd);
         let mut child = cmd
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
+            .stderr(Stdio::null())
             .spawn()
             .context("Failed to execute git command")?;
 
@@ -262,6 +262,7 @@ impl GitBackend for GitCli {
                         status: FileStatus::Untracked,
                         additions: 0,
                         deletions: 0,
+                        is_binary: false,
                     });
                 }
             }

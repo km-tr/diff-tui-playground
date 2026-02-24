@@ -38,6 +38,7 @@ pub fn parse_name_status(output: &str) -> Vec<FileEntry> {
                         status,
                         additions: 0,
                         deletions: 0,
+                        is_binary: false,
                     });
                     i += 3;
                 } else {
@@ -55,6 +56,7 @@ pub fn parse_name_status(output: &str) -> Vec<FileEntry> {
                             status,
                             additions: 0,
                             deletions: 0,
+                            is_binary: false,
                         });
                     }
                     i += 2;
@@ -112,7 +114,8 @@ pub fn merge_numstat(entries: &mut [FileEntry], numstat_output: &str) {
             continue;
         }
 
-        // Binary files show "-" for additions/deletions; parse as 0
+        // Binary files show "-" for additions/deletions
+        let is_binary = parts[0] == "-" || parts[1] == "-";
         let additions = parts[0].parse::<u32>().unwrap_or(0);
         let deletions = parts[1].parse::<u32>().unwrap_or(0);
         let path = parts[2];
@@ -129,6 +132,7 @@ pub fn merge_numstat(entries: &mut [FileEntry], numstat_output: &str) {
                 }) {
                     entry.additions = additions;
                     entry.deletions = deletions;
+                    entry.is_binary = is_binary;
                 }
                 i += 3;
             } else {
@@ -155,6 +159,7 @@ pub fn merge_numstat(entries: &mut [FileEntry], numstat_output: &str) {
             }) {
                 entry.additions = additions;
                 entry.deletions = deletions;
+                entry.is_binary = is_binary;
             }
             i += 1;
         }
@@ -214,6 +219,7 @@ mod tests {
                 status: FileStatus::Modified,
                 additions: 0,
                 deletions: 0,
+                is_binary: false,
             },
             FileEntry {
                 path: "src/new.rs".into(),
@@ -221,6 +227,7 @@ mod tests {
                 status: FileStatus::Added,
                 additions: 0,
                 deletions: 0,
+                is_binary: false,
             },
         ];
         // NUL-delimited numstat: ADD\tDEL\tPATH\0
@@ -241,6 +248,7 @@ mod tests {
             status: FileStatus::Renamed,
             additions: 0,
             deletions: 0,
+            is_binary: false,
         }];
         let numstat = "3\t1\t\0src/old.rs\0src/new.rs\0";
         merge_numstat(&mut entries, numstat);
@@ -256,6 +264,7 @@ mod tests {
             status: FileStatus::Renamed,
             additions: 0,
             deletions: 0,
+            is_binary: false,
         }];
         let numstat = "3\t1\tsrc/{old.rs => new.rs}\0";
         merge_numstat(&mut entries, numstat);
@@ -271,6 +280,7 @@ mod tests {
             status: FileStatus::Renamed,
             additions: 0,
             deletions: 0,
+            is_binary: false,
         }];
         let numstat = "5\t2\told_name.rs => new_name.rs\0";
         merge_numstat(&mut entries, numstat);

@@ -91,10 +91,11 @@ fn load_refs_and_worktrees(state: &AppState, git: &Arc<GitCli>, tx: &Sender<Inte
         let git = git.clone();
         let tx = tx.clone();
         let path = ctx.worktree_path.clone();
+        let generation = state.generation;
         std::thread::spawn(move || {
             match git.list_refs(&path) {
                 Ok(refs) => {
-                    let _ = tx.send(InternalEvent::GitRefsLoaded { refs });
+                    let _ = tx.send(InternalEvent::GitRefsLoaded { generation, refs });
                 }
                 Err(e) => {
                     tracing::warn!("Failed to list refs: {}", e);
@@ -102,7 +103,10 @@ fn load_refs_and_worktrees(state: &AppState, git: &Arc<GitCli>, tx: &Sender<Inte
             }
             match git.list_worktrees(&path) {
                 Ok(wts) => {
-                    let _ = tx.send(InternalEvent::GitWorktreesLoaded { worktrees: wts });
+                    let _ = tx.send(InternalEvent::GitWorktreesLoaded {
+                        generation,
+                        worktrees: wts,
+                    });
                 }
                 Err(e) => {
                     tracing::warn!("Failed to list worktrees: {}", e);

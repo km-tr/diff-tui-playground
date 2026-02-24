@@ -76,6 +76,8 @@ pub struct FileEntry {
     pub status: FileStatus,
     pub additions: u32,
     pub deletions: u32,
+    /// True when `git --numstat` reports `-` for additions/deletions (binary file).
+    pub is_binary: bool,
 }
 
 impl fmt::Display for FileEntry {

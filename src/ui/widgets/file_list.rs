@@ -1,7 +1,7 @@
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, List, ListItem};
+use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph};
 use ratatui::Frame;
 
 use crate::app::state::AppState;
@@ -36,7 +36,7 @@ pub fn draw_file_list(f: &mut Frame, area: Rect, state: &mut AppState, focused: 
         } else {
             "No changes"
         };
-        let para = ratatui::widgets::Paragraph::new(msg)
+        let para = Paragraph::new(msg)
             .block(block)
             .style(Style::default().fg(Color::DarkGray));
         f.render_widget(para, area);
@@ -65,6 +65,7 @@ pub fn draw_file_list(f: &mut Frame, area: Rect, state: &mut AppState, focused: 
         }
         scroll
     };
+    state.file_scroll = scroll;
 
     let items: Vec<ListItem> = filtered
         .iter()
@@ -95,7 +96,9 @@ pub fn draw_file_list(f: &mut Frame, area: Rect, state: &mut AppState, focused: 
                 FileStatus::Unknown => " ",
             };
 
-            let stat = if file.additions > 0 || file.deletions > 0 {
+            let stat = if file.is_binary {
+                " [binary]".to_string()
+            } else if file.additions > 0 || file.deletions > 0 {
                 format!(" +{}/-{}", file.additions, file.deletions)
             } else {
                 String::new()

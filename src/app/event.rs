@@ -66,9 +66,11 @@ pub enum InternalEvent {
         diff: FileDiff,
     },
     GitRefsLoaded {
+        generation: u64,
         refs: Vec<RefEntry>,
     },
     GitWorktreesLoaded {
+        generation: u64,
         worktrees: Vec<WorktreeEntry>,
     },
     ContextResolved {

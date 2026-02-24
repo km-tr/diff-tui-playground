@@ -72,6 +72,19 @@ pub fn draw_diff_view(f: &mut Frame, area: Rect, state: &AppState, focused: bool
             // Build all lines with virtual scrolling
             let lines = build_diff_lines(diff, state);
 
+            // If there are no hunk lines but we have metadata, show it
+            if lines.is_empty() && !diff.extended_headers.is_empty() {
+                let meta_lines = build_metadata_lines(diff);
+                let visible: Vec<Line> = meta_lines
+                    .into_iter()
+                    .skip(state.diff_scroll)
+                    .take(visible_height)
+                    .collect();
+                let para = Paragraph::new(visible).block(block);
+                f.render_widget(para, area);
+                return;
+            }
+
             // Apply scroll offset
             let visible_lines: Vec<Line> = lines
                 .into_iter()
@@ -151,6 +164,31 @@ fn build_diff_lines<'a>(diff: &'a FileDiff, state: &AppState) -> Vec<Line<'a>> {
             lines.push(Line::from(Span::styled(&diff_line.content, style)));
             total_lines += 1;
         }
+    }
+
+    lines
+}
+
+/// Build display lines from diff metadata headers (for hunk-less diffs like
+/// pure renames, mode changes, or submodule updates).
+fn build_metadata_lines(diff: &FileDiff) -> Vec<Line<'_>> {
+    let header_style = Style::default().fg(Color::Cyan);
+    let mut lines: Vec<Line> = Vec::new();
+
+    if !diff.file_header.is_empty() {
+        lines.push(Line::from(Span::styled(&diff.file_header, header_style)));
+    }
+    for h in &diff.extended_headers {
+        lines.push(Line::from(Span::styled(h.as_str(), header_style)));
+    }
+
+    if lines.is_empty() {
+        lines.push(Line::from(Span::styled(
+            "(metadata-only change, no content diff)",
+            Style::default()
+                .fg(Color::DarkGray)
+                .add_modifier(Modifier::ITALIC),
+        )));
     }
 
     lines

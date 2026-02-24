@@ -522,10 +522,27 @@ pub fn handle_internal_event(state: &mut AppState, event: InternalEvent) {
             state.search.matches.clear();
             state.search.current_match = 0;
         }
-        InternalEvent::GitRefsLoaded { refs } => {
+        InternalEvent::GitRefsLoaded { generation, refs } => {
+            if generation < state.generation {
+                debug!(
+                    "Ignoring stale refs update (gen {} < {})",
+                    generation, state.generation
+                );
+                return;
+            }
             state.refs_cache = refs;
         }
-        InternalEvent::GitWorktreesLoaded { worktrees } => {
+        InternalEvent::GitWorktreesLoaded {
+            generation,
+            worktrees,
+        } => {
+            if generation < state.generation {
+                debug!(
+                    "Ignoring stale worktrees update (gen {} < {})",
+                    generation, state.generation
+                );
+                return;
+            }
             state.worktrees_cache = worktrees;
         }
         InternalEvent::ContextResolved {
