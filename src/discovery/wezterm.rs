@@ -96,7 +96,7 @@ fn parse_cwd_url(cwd: &str) -> Option<PathBuf> {
                 } else {
                     let decoded = percent_decode_str(path)
                         .decode_utf8()
-                        .unwrap_or_else(|_| Cow::Borrowed(path));
+                        .unwrap_or(Cow::Borrowed(path));
                     Some(PathBuf::from(decoded.as_ref()))
                 }
             })
