@@ -266,7 +266,12 @@ fn test_print_default_config_flag() {
         .output()
         .unwrap();
 
-    assert!(result.status.success());
+    assert!(
+        result.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&result.stdout),
+        String::from_utf8_lossy(&result.stderr)
+    );
     let stdout = String::from_utf8_lossy(&result.stdout);
     assert!(stdout.contains("default_base"));
     assert!(stdout.contains("unified_context"));
@@ -280,7 +285,12 @@ fn test_print_keys_flag() {
         .output()
         .unwrap();
 
-    assert!(result.status.success());
+    assert!(
+        result.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&result.stdout),
+        String::from_utf8_lossy(&result.stderr)
+    );
     let stdout = String::from_utf8_lossy(&result.stdout);
     assert!(stdout.contains("Navigation:"));
     assert!(stdout.contains("j/Down"));
@@ -295,7 +305,12 @@ fn test_version_flag() {
         .output()
         .unwrap();
 
-    assert!(result.status.success());
+    assert!(
+        result.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&result.stdout),
+        String::from_utf8_lossy(&result.stderr)
+    );
     let stdout = String::from_utf8_lossy(&result.stdout);
     assert!(stdout.contains("diffdon"));
 }

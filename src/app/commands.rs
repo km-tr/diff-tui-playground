@@ -291,8 +291,20 @@ fn resolve_and_switch(
                 .and_then(|common| common.parent().map(|p| p.to_path_buf()))
                 .unwrap_or_else(|| worktree_root.clone());
 
-            let branch = git.current_branch(&worktree_root).unwrap_or(None);
-            let head = git.head_ref(&worktree_root).unwrap_or(None);
+            let branch = match git.current_branch(&worktree_root) {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::warn!("Failed to get current branch: {}", e);
+                    None
+                }
+            };
+            let head = match git.head_ref(&worktree_root) {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::warn!("Failed to get HEAD ref: {}", e);
+                    None
+                }
+            };
             let unborn = match git.is_unborn(&worktree_root) {
                 Ok(v) => v,
                 Err(e) => {

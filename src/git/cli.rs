@@ -180,9 +180,7 @@ impl GitBackend for GitCli {
         args.push("-z".to_string());
 
         let mut cmd = Self::git_cmd(repo);
-        for a in &args {
-            cmd.arg(a);
-        }
+        cmd.args(&args);
         let name_status_output = Self::run_allow_empty(&mut cmd)?;
         let mut entries = name_status::parse_name_status(&name_status_output);
 
@@ -196,9 +194,7 @@ impl GitBackend for GitCli {
         args2.push("--no-ext-diff".to_string());
         args2.push("-z".to_string());
         let mut cmd2 = Self::git_cmd(repo);
-        for a in &args2 {
-            cmd2.arg(a);
-        }
+        cmd2.args(&args2);
         let numstat_output = Self::run_allow_empty(&mut cmd2)?;
         name_status::merge_numstat(&mut entries, &numstat_output);
 
@@ -220,14 +216,12 @@ impl GitBackend for GitCli {
         args.push(file_path.to_string());
 
         let mut cmd = Self::git_cmd(repo);
-        for a in &args {
-            cmd.arg(a);
-        }
+        cmd.args(&args);
         let output = Self::run_allow_empty(&mut cmd)?;
         // Truncate raw output at byte limit to prevent excessive memory use.
         // After finding a UTF-8 boundary, also trim to the last complete line
         // so the parser never receives a partial line mid-hunk.
-        let was_truncated = output.len() > self.max_bytes;
+        let was_truncated = self.max_bytes > 0 && output.len() > self.max_bytes;
         let truncated = if was_truncated {
             let mut end = self.max_bytes;
             while end > 0 && !output.is_char_boundary(end) {
