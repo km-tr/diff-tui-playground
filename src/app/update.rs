@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use tracing::debug;
 
-use super::commands::Command;
+use super::commands::{self, Command};
 use super::event::{InputEvent, InternalEvent};
 use super::state::*;
 use crate::git::model::*;
@@ -201,14 +201,25 @@ pub fn handle_input(state: &mut AppState, event: InputEvent) -> Option<Command> 
                         ));
                         return None;
                     }
-                    // Switch to Compare mode: prefer the discovered default base
-                    // (validated against this repo) over the global persisted base.
-                    let base = state
-                        .default_base
-                        .clone()
-                        .or_else(|| state.persistent.last_base.clone())
-                        .unwrap_or_else(|| "main".to_string());
-                    state.diff_spec = DiffSpec::Compare { base, target: None };
+                    // Switch to Compare mode: prefer default_base (validated against
+                    // this repo). Fall back to last_base only if it exists in refs_cache.
+                    let base = state.default_base.clone().or_else(|| {
+                        let candidate = state.persistent.last_base.clone()?;
+                        state
+                            .refs_cache
+                            .iter()
+                            .any(|r| r.name == candidate)
+                            .then_some(candidate)
+                    });
+                    if let Some(base) = base {
+                        state.diff_spec = DiffSpec::Compare { base, target: None };
+                    } else {
+                        state.toast = Some(Toast::new(
+                            "No valid base ref found for Compare mode",
+                            Duration::from_secs(2),
+                        ));
+                        return None;
+                    }
                 }
                 DiffSpec::Compare { .. } => {
                     state.diff_spec = DiffSpec::Worktree(WorktreeMode::Unstaged);
@@ -554,8 +565,10 @@ pub fn handle_internal_event(state: &mut AppState, event: InternalEvent) {
             state.pane_candidates = panes;
             // If the context selector is currently open, rebuild it so
             // newly discovered panes appear without reopening.
+            // Use rebuild_context_selector directly (not OpenContextSelector)
+            // to avoid re-triggering pane discovery in a loop.
             if state.overlay == Overlay::ContextSelector {
-                state.pending_commands.push(Command::OpenContextSelector);
+                commands::rebuild_context_selector(state);
             }
         }
         InternalEvent::WatchTriggered => {

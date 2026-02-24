@@ -342,6 +342,16 @@ fn resolve_and_switch(
             state.default_base =
                 git.find_default_base(&worktree_root, &state.config.default_base);
 
+            // If currently in Compare mode, revalidate the base ref against
+            // the new repo. Fall back to default_base or Worktree mode.
+            if let DiffSpec::Compare { .. } = &state.diff_spec {
+                if let Some(base) = state.default_base.clone() {
+                    state.diff_spec = DiffSpec::Compare { base, target: None };
+                } else {
+                    state.diff_spec = DiffSpec::Worktree(WorktreeMode::Unstaged);
+                }
+            }
+
             state.context = Some(ctx);
             state.generation += 1;
 
@@ -373,12 +383,10 @@ fn resolve_and_switch(
     }
 }
 
-fn open_context_selector(state: &mut AppState, _git: &Arc<GitCli>, tx: &Sender<InternalEvent>) {
-    // Build context candidates from:
-    // 1. Current context
-    // 2. Worktrees
-    // 3. Recent contexts
-    // 4. Pane discovery candidates
+/// Rebuild the context selector items from current state without
+/// triggering a new pane discovery. Used both when opening the selector
+/// and when a PanesDiscovered event arrives while the selector is open.
+pub fn rebuild_context_selector(state: &mut AppState) {
     let mut items: Vec<String> = Vec::new();
     let mut paths: Vec<String> = Vec::new();
     let mut seen_paths: Vec<PathBuf> = Vec::new();
@@ -424,6 +432,10 @@ fn open_context_selector(state: &mut AppState, _git: &Arc<GitCli>, tx: &Sender<I
 
     state.selector = Some(SelectorState::with_data(items, paths));
     state.overlay = Overlay::ContextSelector;
+}
+
+fn open_context_selector(state: &mut AppState, _git: &Arc<GitCli>, tx: &Sender<InternalEvent>) {
+    rebuild_context_selector(state);
 
     // Trigger pane discovery refresh
     let config_mode = state.config.discovery.clone();
