@@ -527,13 +527,15 @@ pub fn handle_internal_event(state: &mut AppState, event: InternalEvent) {
             match state.persistent.last_mode.as_deref() {
                 Some("compare") => {
                     if !state.context.as_ref().is_some_and(|c| c.is_unborn) {
-                        // Prefer the discovered default base (which is validated
-                        // against the current repo's refs) over the persisted
-                        // last_base, which is global and may not exist here.
-                        let base = default_base
-                            .or_else(|| state.persistent.last_base.clone())
-                            .unwrap_or_else(|| "main".to_string());
-                        state.diff_spec = DiffSpec::Compare { base, target: None };
+                        // Use the discovered default base (validated against
+                        // this repo's refs). Do NOT fall back to the global
+                        // persisted last_base — it may reference a ref that
+                        // does not exist in this repository.
+                        if let Some(base) = default_base {
+                            state.diff_spec = DiffSpec::Compare { base, target: None };
+                        }
+                        // If no valid base was found, stay in Worktree mode
+                        // rather than risk an invalid ref.
                     }
                 }
                 _ => {
@@ -550,6 +552,11 @@ pub fn handle_internal_event(state: &mut AppState, event: InternalEvent) {
         }
         InternalEvent::PanesDiscovered { panes } => {
             state.pane_candidates = panes;
+            // If the context selector is currently open, rebuild it so
+            // newly discovered panes appear without reopening.
+            if state.overlay == Overlay::ContextSelector {
+                state.pending_commands.push(Command::OpenContextSelector);
+            }
         }
         InternalEvent::WatchTriggered => {
             state.generation += 1;

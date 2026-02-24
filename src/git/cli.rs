@@ -1,5 +1,6 @@
+use std::io::Read as _;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use anyhow::{bail, Context, Result};
 use tracing::debug;
@@ -72,6 +73,52 @@ impl GitCli {
                 Ok(String::from_utf8_lossy(e.as_bytes()).into_owned())
             }
         }
+    }
+
+    /// Run a command and read at most `limit` bytes from stdout, then kill
+    /// the process to avoid buffering arbitrarily large output into memory.
+    /// Returns (output, was_truncated).
+    fn run_with_limit(cmd: &mut Command, limit: usize) -> Result<(String, bool)> {
+        debug!("Running (limited to {} bytes): {:?}", limit, cmd);
+        let mut child = cmd
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .context("Failed to execute git command")?;
+
+        let mut buf = vec![0u8; limit + 1];
+        let stdout = child.stdout.take().unwrap();
+        let mut reader = std::io::BufReader::new(stdout);
+        let mut total = 0;
+        loop {
+            let n = reader
+                .read(&mut buf[total..])
+                .context("Failed to read git stdout")?;
+            if n == 0 {
+                break;
+            }
+            total += n;
+            if total > limit {
+                break;
+            }
+        }
+
+        let was_truncated = total > limit;
+        let keep = if was_truncated { limit } else { total };
+
+        // Kill the process early if we truncated to avoid wasting resources
+        if was_truncated {
+            let _ = child.kill();
+        }
+        let _ = child.wait();
+
+        // Find a valid UTF-8 boundary
+        let mut end = keep;
+        while end > 0 && !std::str::from_utf8(&buf[..end]).is_ok() {
+            end -= 1;
+        }
+        let output = String::from_utf8_lossy(&buf[..end]).into_owned();
+        Ok((output, was_truncated))
     }
 
     fn diff_args(spec: &DiffSpec) -> Vec<String> {
@@ -223,21 +270,22 @@ impl GitBackend for GitCli {
 
         let mut cmd = Self::git_cmd(repo);
         cmd.args(&args);
-        let output = Self::run_allow_empty(&mut cmd)?;
-        // Truncate raw output at byte limit to prevent excessive memory use.
-        // After finding a UTF-8 boundary, also trim to the last complete line
-        // so the parser never receives a partial line mid-hunk.
-        let was_truncated = self.max_bytes > 0 && output.len() > self.max_bytes;
+
+        // Stream stdout up to max_bytes to avoid buffering huge diffs into memory.
+        let (output, was_truncated) = if self.max_bytes > 0 {
+            Self::run_with_limit(&mut cmd, self.max_bytes)?
+        } else {
+            let full = Self::run_allow_empty(&mut cmd)?;
+            (full, false)
+        };
+
+        // If truncated, trim to last complete line so the parser never
+        // receives a partial line mid-hunk.
         let truncated = if was_truncated {
-            let mut end = self.max_bytes;
-            while end > 0 && !output.is_char_boundary(end) {
-                end -= 1;
-            }
-            // Trim back to the last newline to avoid partial lines
-            if let Some(nl) = output[..end].rfind('\n') {
+            if let Some(nl) = output.rfind('\n') {
                 &output[..nl + 1]
             } else {
-                &output[..end]
+                &output
             }
         } else {
             &output
