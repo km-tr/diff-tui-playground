@@ -188,10 +188,8 @@ pub fn handle_input(state: &mut AppState, event: InputEvent) -> Option<Command> 
             match &state.diff_spec {
                 DiffSpec::Worktree(_) => {
                     if state.context.is_none() {
-                        state.toast = Some(Toast::new(
-                            "Context not loaded yet",
-                            Duration::from_secs(2),
-                        ));
+                        state.toast =
+                            Some(Toast::new("Context not loaded yet", Duration::from_secs(2)));
                         return None;
                     }
                     if state.context.as_ref().is_some_and(|c| c.is_unborn) {
@@ -617,8 +615,7 @@ fn scroll_to_hunk(state: &mut AppState) {
         let mut line_offset = 0;
         for (i, hunk) in diff.hunks.iter().enumerate() {
             if i == state.current_hunk {
-                state.diff_scroll =
-                    line_offset.min(state.diff_total_lines.saturating_sub(1));
+                state.diff_scroll = line_offset.min(state.diff_total_lines.saturating_sub(1));
                 break;
             }
             line_offset += hunk.lines.len();

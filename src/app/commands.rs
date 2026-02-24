@@ -133,7 +133,13 @@ fn load_diff(state: &mut AppState, git: &Arc<GitCli>, tx: &Sender<InternalEvent>
     let ctx_lines = state.config.unified_context;
 
     std::thread::spawn(move || {
-        match git.file_diff(&ctx.worktree_path, &spec, &file_path, old_path.as_deref(), ctx_lines) {
+        match git.file_diff(
+            &ctx.worktree_path,
+            &spec,
+            &file_path,
+            old_path.as_deref(),
+            ctx_lines,
+        ) {
             Ok(diff) => {
                 let _ = tx.send(InternalEvent::GitDiffUpdated {
                     generation: gen,
@@ -235,7 +241,10 @@ fn export_to_file(state: &mut AppState, path: &str) {
         match std::fs::write(path, &text) {
             Ok(()) => {
                 let msg = if diff.is_truncated {
-                    format!("Exported to {} (truncated — output exceeded size limit)", path)
+                    format!(
+                        "Exported to {} (truncated — output exceeded size limit)",
+                        path
+                    )
                 } else {
                     format!("Exported to {}", path)
                 };
@@ -339,8 +348,7 @@ fn resolve_and_switch(
             };
 
             // Recompute default base for the new repo
-            state.default_base =
-                git.find_default_base(&worktree_root, &state.config.default_base);
+            state.default_base = git.find_default_base(&worktree_root, &state.config.default_base);
 
             // If currently in Compare mode, revalidate the base ref against
             // the new repo. Fall back to default_base or Worktree mode.
@@ -356,9 +364,11 @@ fn resolve_and_switch(
             state.generation += 1;
 
             // Update persistent — store the worktree path so we can switch back to it
-            state
-                .persistent
-                .add_recent_context(worktree_root, branch, state.config.max_recent_contexts);
+            state.persistent.add_recent_context(
+                worktree_root,
+                branch,
+                state.config.max_recent_contexts,
+            );
             if let Err(e) = state.persistent.save() {
                 tracing::warn!("Failed to save persistent state: {}", e);
             }

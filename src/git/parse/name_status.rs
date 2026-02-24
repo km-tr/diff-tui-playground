@@ -123,7 +123,8 @@ pub fn merge_numstat(entries: &mut [FileEntry], numstat_output: &str) {
                 let old_path = fields[i + 1];
                 let new_path = fields[i + 2];
                 if let Some(entry) = entries.iter_mut().find(|e| {
-                    e.path == new_path || e.path == old_path
+                    e.path == new_path
+                        || e.path == old_path
                         || e.old_path.as_deref() == Some(old_path)
                 }) {
                     entry.additions = additions;
@@ -223,7 +224,7 @@ mod tests {
             },
         ];
         // NUL-delimited numstat: ADD\tDEL\tPATH\0
-        let numstat = "10\t5\tsrc/main.rs\020\t0\tsrc/new.rs\0";
+        let numstat = "10\t5\tsrc/main.rs\x0020\t0\tsrc/new.rs\0";
         merge_numstat(&mut entries, numstat);
         assert_eq!(entries[0].additions, 10);
         assert_eq!(entries[0].deletions, 5);

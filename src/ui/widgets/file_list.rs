@@ -59,7 +59,9 @@ pub fn draw_file_list(f: &mut Frame, area: Rect, state: &mut AppState, focused: 
             scroll = state.file_selected;
         }
         if state.file_selected >= scroll + inner_height {
-            scroll = state.file_selected.saturating_sub(inner_height.saturating_sub(1));
+            scroll = state
+                .file_selected
+                .saturating_sub(inner_height.saturating_sub(1));
         }
         scroll
     };

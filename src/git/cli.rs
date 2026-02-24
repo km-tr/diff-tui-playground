@@ -114,7 +114,7 @@ impl GitCli {
 
         // Find a valid UTF-8 boundary
         let mut end = keep;
-        while end > 0 && !std::str::from_utf8(&buf[..end]).is_ok() {
+        while end > 0 && std::str::from_utf8(&buf[..end]).is_err() {
             end -= 1;
         }
         let output = String::from_utf8_lossy(&buf[..end]).into_owned();
@@ -159,9 +159,12 @@ impl GitBackend for GitCli {
             raw
         };
         // Canonicalize to resolve `.git/../.git` etc.
-        absolute
-            .canonicalize()
-            .with_context(|| format!("Failed to canonicalize git common dir: {}", absolute.display()))
+        absolute.canonicalize().with_context(|| {
+            format!(
+                "Failed to canonicalize git common dir: {}",
+                absolute.display()
+            )
+        })
     }
 
     fn current_branch(&self, repo: &Path) -> Result<Option<String>> {
