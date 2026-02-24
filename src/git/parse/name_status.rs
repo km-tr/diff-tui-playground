@@ -105,7 +105,8 @@ pub fn merge_numstat(entries: &mut [FileEntry], numstat_output: &str) {
             continue;
         }
 
-        let parts: Vec<&str> = field.split('\t').collect();
+        // Use splitn(3, ...) so that tab characters inside filenames are preserved
+        let parts: Vec<&str> = field.splitn(3, '\t').collect();
         if parts.len() < 3 {
             i += 1;
             continue;

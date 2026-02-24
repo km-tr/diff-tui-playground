@@ -20,15 +20,6 @@ impl FileWatcher {
             move |res: Result<Vec<notify_debouncer_mini::DebouncedEvent>, notify::Error>| match res
             {
                 Ok(events) => {
-                    let dominated_by_gitdir = events.iter().all(|e| {
-                        e.path
-                            .components()
-                            .any(|c| c.as_os_str() == ".git")
-                    });
-                    if dominated_by_gitdir {
-                        debug!("Ignoring .git internal events");
-                        return;
-                    }
                     debug!("Watch triggered: {} events", events.len());
                     let _ = tx.send(InternalEvent::WatchTriggered);
                 }
